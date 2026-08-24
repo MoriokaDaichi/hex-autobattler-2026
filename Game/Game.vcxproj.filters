@@ -1,0 +1,83 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="system">
+      <UniqueIdentifier>{22dd8095-74f9-46df-81a1-36675a040b1f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core">
+      <UniqueIdentifier>{2c0a0f7c-0aa6-40ab-bcca-c04e7b6f26f1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="CUI">
+      <UniqueIdentifier>{80f53301-ca8c-4a5e-88db-f9284147f6a3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="system\system.cpp">
+      <Filter>system</Filter>
+    </ClCompile>
+    <ClCompile Include="Game.cpp" />
+    <ClCompile Include="HexCoord.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="UnitDef.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="UnitInstance.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Player.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="GameState.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="UnitDatabase.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="ShopSystem.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="CombatEngine.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="HexGridRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="system\system.h">
+      <Filter>system</Filter>
+    </ClInclude>
+    <ClInclude Include="Game.h" />
+    <ClInclude Include="HexCoord.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UnitDef.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UnitInstance.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Player.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="GameState.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UnitDatabase.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="ShopSystem.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="CombatEngine.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="HexGridRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

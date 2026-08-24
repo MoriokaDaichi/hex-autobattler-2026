@@ -1,0 +1,59 @@
+# ==== Visual Studio / MSBuild build output ====
+[Dd]ebug/
+[Rr]elease/
+Preview/
+x64/
+x86/
+ipch/
+.vs/
+[Bb]in/
+[Oo]bj/
+
+# ==== Build artifacts (in case they escape the folders above) ====
+*.obj
+*.pch
+*.pdb
+*.ilk
+*.idb
+*.iobj
+*.ipdb
+*.tlog
+*.log
+*.lastbuildstate
+*.res
+*.exp
+*.aps
+*.ncb
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.VC.opendb
+*.tmp
+*.cache
+BuildLog.htm
+
+# ==== Visual Studio user-specific files ====
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ==== Third-party middleware: not used by the Windows/DX12 build, kept locally only ====
+# k2EngineLow/ExEngine/Photon: only ExEngine/Photon/*-cpp (Photon SDK headers/libs) are on the
+# include path; Demos/ is an unrelated multi-platform cocos2d sample bundle (~300MB).
+k2EngineLow/ExEngine/Photon/Demos/
+# effekseer: only install_msvc2019/ (headers/libs) is referenced by k2Engine.vcxproj;
+# build_msvc2019/ is generated docs/examples output.
+k2EngineLow/ExEngine/effekseer/build_msvc2019/
+
+# ==== k2SLEditor: this is the frozen PyInstaller distribution (exe + bundled Python runtime).
+# Actual source lives in toolsProj/k2SLEditorProj, which stays tracked. ====
+tools/k2SLEditor/
+
+# ==== Claude Code local tooling config (machine-specific, not project content) ====
+.claude/
+
+# ==== OS / editor cruft ====
+Thumbs.db
+desktop.ini
+.DS_Store
