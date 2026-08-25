@@ -57,3 +57,11 @@ tools/k2SLEditor/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# ==== Unit model pipeline: raw/intermediate assets, not needed for the build ====
+# MeshyAIの生FBX/PNGテクスチャ、Blenderのリギング中間ファイル、生ダウンロードzip。
+# 詳細は Game/Assets/modelData/_pipeline_scripts/HANDOFF.md 参照。
+# ゲームが実際に使う最終出力(.tkm/.tks/.tka/.dds)はコミット対象。
+Game/Assets/modelData/_meshy_raw/
+Game/Assets/modelData/_pipeline_scripts/rigged_blends/
+Game/Assets/modelData/*.zip

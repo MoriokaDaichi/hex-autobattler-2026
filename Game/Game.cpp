@@ -12,6 +12,23 @@ bool Game::Start()
 	m_itemDatabase.Init();
 	m_hexGridRenderer.Init();
 
+	// [検証用] カメラ・ライティング未整備のため、モデル表示確認用に最小限のライトを設定する。
+	// 本格的な実装は別タスク「カメラ・ライティングのセットアップ」で行う。
+	g_renderingEngine->SetDirectionLight(0, Vector3(0.3f, -0.7f, 0.5f), Vector3(1.0f, 1.0f, 1.0f));
+	g_renderingEngine->SetAmbient(Vector3(0.3f, 0.3f, 0.3f));
+
+	// [検証用] Goblinの.tkm/.tka表示確認テスト。確認後は削除する。
+	m_testAnimClips[0].Load("Assets/modelData/Goblin_Idle.tka");
+	m_testAnimClips[1].Load("Assets/modelData/Goblin_Move.tka");
+	m_testAnimClips[2].Load("Assets/modelData/Goblin_NormalAttack.tka");
+	m_testAnimClips[3].Load("Assets/modelData/Goblin_Skill.tka");
+	m_testAnimClips[4].Load("Assets/modelData/Goblin_Death.tka");
+	m_testModelRender.Init("Assets/modelData/Goblin.tkm", m_testAnimClips, 5);
+	m_testModelRender.SetTRS(Vector3(0.0f, 0.0f, 0.0f), Quaternion::Identity, Vector3(10.0f, 10.0f, 10.0f));
+	// [検証用] 一旦アニメーション再生を止めてバインドポーズを確認する(スキニング破綻の切り分け用)。
+	// m_testModelRender.PlayAnimation(1); // Move
+
+
 	// プレイヤー1(操作するプレイヤー、唯一のplayers要素)
 	m_gameState.players.push_back(Player("You"));
 	m_gameState.players[0].gold = 10;
@@ -40,6 +57,9 @@ bool Game::Start()
 
 void Game::Update()
 {
+	// [検証用] Goblinの.tkm/.tka表示確認テスト。確認後は削除する。
+	m_testModelRender.Update();
+
 	if (m_gameState.currentPhase == Phase::Preparation)
 	{
 		// まだショップが無ければ抽選する。
@@ -378,4 +398,7 @@ std::vector<EnemyStage> Game::BuildEnemyStages()
 void Game::Render(RenderContext& rc)
 {
 	m_hexGridRenderer.Draw(rc, m_gameState);
+
+	// [検証用] Goblinの.tkm/.tka表示確認テスト。確認後は削除する。
+	m_testModelRender.Draw(rc);
 }
