@@ -13,7 +13,7 @@ shaderFxPath = maxOps.mxsCmdLineArgs[#shaderFxPath]
 frameStart = (maxOps.mxsCmdLineArgs[#frameStart]) as integer
 frameEnd = (maxOps.mxsCmdLineArgs[#frameEnd]) as integer
 
-scriptsDir = "C:/Users/1264033/AppData/Local/Temp/claude/c--my-01-project-02-GameProject-GameTemplate/3e1ab223-e114-4d2e-abbe-057b44050cd5/scratchpad/"
+scriptsDir = "c:/my/01_project/02_GameProject/GameTemplate/Game/Assets/modelData/_pipeline_scripts/"
 fileIn (scriptsDir + "tkExporterCommon.ms")
 fileIn (scriptsDir + "tksExporter.ms")
 fileIn (scriptsDir + "tkmExporter_batch.ms")

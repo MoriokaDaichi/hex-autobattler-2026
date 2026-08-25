@@ -65,3 +65,5 @@ desktop.ini
 Game/Assets/modelData/_meshy_raw/
 Game/Assets/modelData/_pipeline_scripts/rigged_blends/
 Game/Assets/modelData/*.zip
+# リベイク前のバックアップ(検証用に手元で保持しているだけの中間コピー)
+Game/Assets/modelData/_goblin_backup_before_rebake/

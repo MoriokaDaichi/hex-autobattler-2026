@@ -18,11 +18,19 @@ def to_u8(f):
         v = 255
     return v
 
-# Build top-down RGBA8 buffer (DDS expects row 0 = top)
+# Build RGBA8 buffer for DDS.
+# NOTE: do NOT flip rows here. tkmExporter_batch.ms writes UV.v straight from
+# 3ds Max's gettvert without any V-flip, and 3ds Max's V axis already matches
+# Blender's (V=0 at the bottom). Flipping here made row 0 of the PNG (bottom
+# in Blender/Max UV space) become row 0 of the DDS (top, per the DirectX/DDS
+# convention where V=0 is the top row) -- an extra, undesired flip that made
+# every sampled texel land on the wrong UV island. This was the real cause
+# behind the "shattered glass" look on Goblin and all other Meshy units;
+# the source textures/UVs were never actually corrupted.
 row_bytes = w * 4
 buf = bytearray(row_bytes * h)
 for y in range(h):
-    src_y = h - 1 - y  # flip: blender row 0 = bottom -> dds row 0 = top
+    src_y = y
     src_off = src_y * w * 4
     dst_off = y * row_bytes
     for x in range(w):
