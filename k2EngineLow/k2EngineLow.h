@@ -1,6 +1,8 @@
 #pragma once
 
 #include "HID/GamePad.h"
+#include "HID/Mouse.h"
+#include "HID/Keyboard.h"
 #include "util/TResourceBank.h"
 #include "tkFile/TkmFile.h"
 #include "tkFile/TksFile.h"
@@ -221,6 +223,8 @@ namespace nsK2EngineLow {
 		TResourceBank<TksFile> m_tksFileBank;			// TKSファイルバンク。
 		TResourceBank<TkaFile> m_tkaFileBank;			// TKAファイルバンク。
 		GamePad m_pad[GamePad::CONNECT_PAD_MAX];		// ゲームパッド。
+		Mouse m_mouse;
+		Keyboard m_keyboard;
 		GameTime m_gameTime;
 		FPSLimitter m_fpsLimitter;						// FPSに制限をかける処理。
 		FrameRateInfo m_frameRateInfo = { enFrameRateMode_Variable , 60};

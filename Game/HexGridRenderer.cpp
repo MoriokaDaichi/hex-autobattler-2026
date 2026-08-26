@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "HexGridRenderer.h"
+#include <cmath>
 
 namespace
 {
@@ -144,6 +145,52 @@ Vector3 HexGridRenderer::CalcTileCenter(int q, int r)
 	float worldX = kHexSize * (sqrtf(3.0f) * offsetQ + sqrtf(3.0f) * 0.5f * offsetR);
 	float worldZ = kHexSize * (1.5f * offsetR);
 	return Vector3(worldX, 0.0f, worldZ);
+}
+
+bool HexGridRenderer::TryWorldPositionToHex(const Vector3& worldPos, HexCoord& outHex)
+{
+	// CalcTileCenterのpointy-top軸座標変換を、標準的なcube round法で逆算する。
+	float offsetQf = (sqrtf(3.0f) / 3.0f * worldPos.x - 1.0f / 3.0f * worldPos.z) / kHexSize;
+	float offsetRf = (2.0f / 3.0f * worldPos.z) / kHexSize;
+	float qf = offsetQf + kCenterQ;
+	float rf = offsetRf + kCenterR;
+
+	// axial -> cube座標に変換して四捨五入し、誤差が一番大きい成分を残り2つから再計算することで
+	// 「一番近いマス」を正しく求める(単純にq,rをそれぞれ丸めるだけでは隣接マスにズレうる)。
+	float xf = qf;
+	float zf = rf;
+	float yf = -xf - zf;
+
+	int xi = static_cast<int>(std::round(xf));
+	int yi = static_cast<int>(std::round(yf));
+	int zi = static_cast<int>(std::round(zf));
+
+	float xDiff = std::abs(xi - xf);
+	float yDiff = std::abs(yi - yf);
+	float zDiff = std::abs(zi - zf);
+
+	if (xDiff > yDiff && xDiff > zDiff) {
+		xi = -yi - zi;
+	}
+	else if (yDiff > zDiff) {
+		yi = -xi - zi;
+	}
+	else {
+		zi = -xi - yi;
+	}
+
+	HexCoord candidate(xi, zi);
+	if (!IsValidHex(candidate)) {
+		return false;
+	}
+
+	outHex = candidate;
+	return true;
+}
+
+bool HexGridRenderer::IsValidHex(const HexCoord& hex)
+{
+	return hex.q >= kMinQ && hex.q <= kMaxQ && hex.r >= kMinR && hex.r <= kMaxR;
 }
 
 void HexGridRenderer::BuildGridLines()

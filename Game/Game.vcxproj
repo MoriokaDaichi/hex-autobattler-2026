@@ -225,6 +225,7 @@
   <ItemGroup>
     <ClCompile Include="CombatEngine.cpp" />
     <ClCompile Include="Game.cpp" />
+    <ClCompile Include="CursorSelectionSystem.cpp" />
     <ClCompile Include="GameState.cpp" />
     <ClCompile Include="HexCoord.cpp" />
     <ClCompile Include="HexGridRenderer.cpp" />
@@ -245,6 +246,7 @@
   <ItemGroup>
     <ClInclude Include="CombatEngine.h" />
     <ClInclude Include="Game.h" />
+    <ClInclude Include="CursorSelectionSystem.h" />
     <ClInclude Include="GameState.h" />
     <ClInclude Include="HexCoord.h" />
     <ClInclude Include="HexGridRenderer.h" />

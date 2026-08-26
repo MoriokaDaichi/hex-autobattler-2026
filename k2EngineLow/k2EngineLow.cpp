@@ -43,6 +43,9 @@ namespace nsK2EngineLow {
 		for (int i = 0; i < GamePad::CONNECT_PAD_MAX; i++) {
 			g_pad[i] = &m_pad[i];
 		}
+		m_mouse.Init(hwnd);
+		g_mouse = &m_mouse;
+		g_keyboard = &m_keyboard;
 
 		GameObjectManager::CreateInstance();
 		PhysicsWorld::CreateInstance();
@@ -94,6 +97,8 @@ namespace nsK2EngineLow {
 		for (auto& pad : m_pad) {
 			pad.Update();
 		}
+		m_mouse.Update();
+		m_keyboard.Update();
 		g_soundEngine->Update();
 		GameObjectManager::GetInstance()->ExecuteUpdate();
 		// エフェクトエンジンの更新。

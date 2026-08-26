@@ -49,8 +49,22 @@ void Game::Update()
 	// 敵ユニットや戦闘進行自体はリアルタイム3D表示の対象外(スコープ外、別タスク)。
 	m_unitModelDisplay.Update(m_gameState.players[0]);
 
+	// マウス・キーボード・ゲームパッドを横断するカーソル/選択状態を更新する。
+	m_cursorSelection.Update();
+
 	if (m_gameState.currentPhase == Phase::Preparation)
 	{
+		// フォーカス中の一覧の実際の要素数に合わせて、カーソルが範囲外を指さないようにする。
+		Player& prepPlayer = m_gameState.players[0];
+		if (m_cursorSelection.GetFocus() == InputFocus::Shop)
+		{
+			m_cursorSelection.ClampListCursor((int)m_currentShop.size());
+		}
+		else if (m_cursorSelection.GetFocus() == InputFocus::Bench)
+		{
+			m_cursorSelection.ClampListCursor((int)prepPlayer.bench.size());
+		}
+
 		// まだショップが無ければ抽選する。
 		if (m_currentShop.empty())
 		{
@@ -69,15 +83,17 @@ void Game::Update()
 			}
 		}
 
-		// Aボタンで、ショップの0番目のユニットを買う。
+		// Aボタン(またはマウス左クリック/Enter/Space)で、ショップフォーカス中はカーソルが
+		// 指しているユニットを、それ以外のフォーカス中は従来通り0番目を買う。
 		if (g_pad[0]->IsTrigger(enButtonA))
 		{
 			Player& player = m_gameState.players[0];
-			bool success = player.BuyUnit(m_currentShop[0]);
+			int shopIndex = (m_cursorSelection.GetFocus() == InputFocus::Shop) ? m_cursorSelection.GetListCursorIndex() : 0;
+			bool success = !m_currentShop.empty() && player.BuyUnit(m_currentShop[shopIndex]);
 
 			wchar_t buf[256];
-			swprintf_s(buf, L"Buy result: %hs, Gold left: %d, Bench count: %d\n",
-				success ? "true" : "false", player.gold, (int)player.bench.size());
+			swprintf_s(buf, L"Buy result: %hs, Shop index: %d, Gold left: %d, Bench count: %d\n",
+				success ? "true" : "false", shopIndex, player.gold, (int)player.bench.size());
 			OutputDebugString(buf);
 		}
 
@@ -88,15 +104,19 @@ void Game::Update()
 			m_gameState.currentPhase = Phase::Combat;
 		}
 
-		// Xボタンで、ベンチの0番目を盤面の(0,0)に配置する。
+		// Xボタンで、ベンチフォーカス中はカーソルが指しているユニットを、それ以外は0番目を、
+		// 盤面フォーカス中はマウスホバー/矢印キーで選んだマスへ、それ以外は(0,0)へ配置する。
 		if (g_pad[0]->IsTrigger(enButtonX))
 		{
 			Player& player = m_gameState.players[0];
-			bool success = player.PlaceUnitOnBoard(0, HexCoord(0, 0));
+			int benchIndex = (m_cursorSelection.GetFocus() == InputFocus::Bench) ? m_cursorSelection.GetListCursorIndex() : 0;
+			HexCoord targetHex(0, 0);
+			m_cursorSelection.GetHexCursor(targetHex); // 未選択ならデフォルトの(0,0)のまま。
+			bool success = player.PlaceUnitOnBoard(benchIndex, targetHex);
 
 			wchar_t buf[256];
-			swprintf_s(buf, L"Place result: %hs, Bench count: %d, Board count: %d\n",
-				success ? "true" : "false", (int)player.bench.size(), (int)player.board.size());
+			swprintf_s(buf, L"Place result: %hs, Bench index: %d, Hex: (%d,%d), Bench count: %d, Board count: %d\n",
+				success ? "true" : "false", benchIndex, targetHex.q, targetHex.r, (int)player.bench.size(), (int)player.board.size());
 			OutputDebugString(buf);
 		}
 
@@ -128,15 +148,16 @@ void Game::Update()
 			}
 		}
 
-		// LB1ボタンで、ベンチの0番目のユニットを売却してゴールドを得る。
+		// LB1ボタンで、ベンチフォーカス中はカーソルが指しているユニットを、それ以外は0番目を売却する。
 		if (g_pad[0]->IsTrigger(enButtonLB1))
 		{
 			Player& player = m_gameState.players[0];
-			bool success = player.SellUnitFromBench(0);
+			int benchIndex = (m_cursorSelection.GetFocus() == InputFocus::Bench) ? m_cursorSelection.GetListCursorIndex() : 0;
+			bool success = player.SellUnitFromBench(benchIndex);
 
 			wchar_t buf[256];
-			swprintf_s(buf, L"Sell result: %hs, Gold: %d, Bench count: %d\n",
-				success ? "true" : "false", player.gold, (int)player.bench.size());
+			swprintf_s(buf, L"Sell result: %hs, Bench index: %d, Gold: %d, Bench count: %d\n",
+				success ? "true" : "false", benchIndex, player.gold, (int)player.bench.size());
 			OutputDebugString(buf);
 		}
 

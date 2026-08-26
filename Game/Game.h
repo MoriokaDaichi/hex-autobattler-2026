@@ -17,6 +17,7 @@
 #include "EnemyFactory.h"
 #include "HexGridRenderer.h"
 #include "UnitModelDisplay.h"
+#include "CursorSelectionSystem.h"
 
 class Game : public IGameObject
 {
@@ -48,4 +49,5 @@ private:
 	std::vector<EnemyStage> m_enemyStages;
 	HexGridRenderer m_hexGridRenderer;
 	UnitModelDisplay m_unitModelDisplay; // players[0].boardのユニットを3D表示する。
+	CursorSelectionSystem m_cursorSelection; // マウス・キーボード・ゲームパッドを横断するカーソル/選択状態。
 };
