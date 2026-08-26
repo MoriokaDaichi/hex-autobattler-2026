@@ -12,10 +12,25 @@ bool Game::Start()
 	m_itemDatabase.Init();
 	m_hexGridRenderer.Init();
 
-	// [検証用] カメラ・ライティング未整備のため、モデル表示確認用に最小限のライトを設定する。
-	// 本格的な実装は別タスク「カメラ・ライティングのセットアップ」で行う。
-	g_renderingEngine->SetDirectionLight(0, Vector3(0.3f, -0.7f, 0.5f), Vector3(1.0f, 1.0f, 1.0f));
-	g_renderingEngine->SetAmbient(Vector3(0.3f, 0.3f, 0.3f));
+	// 盤面(ヘックスグリッド q:0-8, r:0-2、HexGridRenderer::CalcTileCenterの座標系で
+	// 概ねX:±430, Z:±125に収まる)全体が、自陣・中立・敵陣とも余裕を持って画角に入るよう、
+	// 盤面中心(ワールド原点)を見下ろす角度・距離を大きめに取ってカメラを配置する。
+	// (ユニットモデルが等倍スケールで大きすぎる既知問題の影響も、離すことである程度緩和される)
+	g_camera3D->SetPosition({ 0.0f, 900.0f, -650.0f });
+	g_camera3D->SetTarget({ 0.0f, 0.0f, 0.0f });
+
+	// カメラとほぼ同じ側(斜め上・やや背後)からユニット正面に光が回り込む方向に
+	// ディレクションライトを設定し、シルエット化を避けつつ陰影で立体感を出す。
+	Vector3 mainLightDir(0.35f, -0.75f, 0.55f);
+	mainLightDir.Normalize();
+	g_renderingEngine->SetDirectionLight(0, mainLightDir, Vector3(1.05f, 1.0f, 0.92f));
+	g_renderingEngine->SetAmbient(Vector3(0.35f, 0.35f, 0.4f));
+
+	// 盤面以外に何も無い(背景が真っ黒に近い)シーンだと、自動露出(ミドルグレー基準)が
+	// 平均輝度の低さを補おうとして過剰に明るさを持ち上げ、ブルームが暴れてしまうため、
+	// 露出目標を下げつつブルームの発光しきい値を高くして抑える。
+	g_renderingEngine->SetSceneMiddleGray(0.03f);
+	g_renderingEngine->SetBloomThreshold(10.0f);
 
 	// プレイヤー1(操作するプレイヤー、唯一のplayers要素)
 	m_gameState.players.push_back(Player("You"));

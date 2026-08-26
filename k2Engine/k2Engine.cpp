@@ -30,11 +30,6 @@ namespace nsK2Engine {
 			raytracintInitData
 		);
 		m_renderingEngine.Init(initData.isSoftShadow);
-		// 盤面(ヘックスグリッド)をTFT風に見下ろせるよう、盤面中心(ワールド原点)の
-		// 斜め上から見下ろすアングルに設定している。演出込みのカメラ調整は
-		// 別タスク「カメラ・ライティングのセットアップ」で行う想定の暫定値。
-		g_camera3D->SetPosition({ 0.0f, 700.0f, -350.0f });
-		g_camera3D->SetTarget({ 0.0f, 0.0f, 0.0f });
 #ifdef K2_DEBUG
 		// �f�o�b�O�x�N�g�������_���[���쐬����B
 		m_vectorRenderer = NewGO<nsDbg::VectorRenderer>(0);
