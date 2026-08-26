@@ -299,6 +299,8 @@
     <ClCompile Include="graphics\VertexBuffer.cpp" />
     <ClCompile Include="HID\GamePad.cpp" />
     <ClCompile Include="HID\GamePadVIbration.cpp" />
+    <ClCompile Include="HID\Keyboard.cpp" />
+    <ClCompile Include="HID\Mouse.cpp" />
     <ClCompile Include="k2EngineLow.cpp" />
     <ClCompile Include="k2EngineLowPreCompile.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -393,6 +395,8 @@
     <ClInclude Include="graphics\VertexBuffer.h" />
     <ClInclude Include="HID\GamePad.h" />
     <ClInclude Include="HID\GamePadVibration.h" />
+    <ClInclude Include="HID\Keyboard.h" />
+    <ClInclude Include="HID\Mouse.h" />
     <ClInclude Include="k2EngineLow.h" />
     <ClInclude Include="k2EngineLowPreCompile.h" />
     <ClInclude Include="level2D\CaslFile.h" />

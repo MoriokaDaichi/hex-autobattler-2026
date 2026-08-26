@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "GameState.h"
+#include "HexCoord.h"
 
 /// <summary>
 /// 盤面(ヘックスグリッド)のグリッド線とゾーン塗りを描画するクラス。
@@ -28,6 +29,18 @@ public:
 	/// 同じ座標系を再利用するためpublic staticとして公開している。
 	/// </summary>
 	static Vector3 CalcTileCenter(int q, int r);
+
+	/// <summary>
+	/// CalcTileCenterの逆変換。ワールド座標(y成分は無視し、xz平面上の位置として扱う)から
+	/// 最も近いマスのaxial座標を求める。盤面の範囲外だった場合はfalseを返す。
+	/// マウスピッキングによるヘックスカーソル(CursorSelectionSystem)から利用する。
+	/// </summary>
+	static bool TryWorldPositionToHex(const Vector3& worldPos, HexCoord& outHex);
+
+	/// <summary>
+	/// 指定のaxial座標が盤面の範囲内かどうかを判定する。
+	/// </summary>
+	static bool IsValidHex(const HexCoord& hex);
 
 private:
 	struct Vertex

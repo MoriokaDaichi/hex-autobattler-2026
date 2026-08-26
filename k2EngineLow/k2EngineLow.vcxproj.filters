@@ -122,6 +122,12 @@
     <ClCompile Include="HID\GamePad.cpp">
       <Filter>HID</Filter>
     </ClCompile>
+    <ClCompile Include="HID\Keyboard.cpp">
+      <Filter>HID</Filter>
+    </ClCompile>
+    <ClCompile Include="HID\Mouse.cpp">
+      <Filter>HID</Filter>
+    </ClCompile>
     <ClCompile Include="level2D\CaslFile.cpp">
       <Filter>level2D</Filter>
     </ClCompile>
@@ -376,6 +382,12 @@
       <Filter>gameObject</Filter>
     </ClInclude>
     <ClInclude Include="HID\GamePad.h">
+      <Filter>HID</Filter>
+    </ClInclude>
+    <ClInclude Include="HID\Keyboard.h">
+      <Filter>HID</Filter>
+    </ClInclude>
+    <ClInclude Include="HID\Mouse.h">
       <Filter>HID</Filter>
     </ClInclude>
     <ClInclude Include="level2D\MapChip2D.h">

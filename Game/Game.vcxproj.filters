@@ -45,6 +45,9 @@
     <ClCompile Include="HexGridRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="CursorSelectionSystem.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="UnitModelDisplay.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -80,6 +83,9 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="HexGridRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="CursorSelectionSystem.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="UnitModelDisplay.h">
