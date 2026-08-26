@@ -127,17 +127,21 @@ Swordsmanで「UV再ベイクをせず、既存の`_meshy_raw/Swordsman/Swordsma
 - **Warlordのみ`_meshy_raw/Warlord/`に`Warlord_metallicRoughness.png`が無く`Warlord_metallic.png`しか無い**ことを確認済み。Warlordの`metallicPath`には`Warlord_metallic.png`を指定すること。他9体は`{Unit}_metallicRoughness.png`で揃っている。
 - **ユーザーからPC電源オフのため中断依頼があり、実行中だったバッチ処理(Knightの3dsmax変換中)を安全に停止した。** `Game/Assets/modelData/`への書き込みは各ユニットの全ステップ成功後にまとめてコピーする設計だったため、**中断時点でKnight以降のファイルが`Game/Assets/modelData/`に中途半端な状態で残ることは無い**(確認済み)。
 
-### 現在の完了状況(2026-08-25時点、18体中)
+### 現在の完了状況(2026-08-26セッションで更新、18体中)
 
-- **完了・配置済み(3体)**: Goblin, Swordsman(前セッション), **Priest, Archer(今セッション追加)**
-- **未着手(残り14体)**: Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, Warlord, NightBlade, ChimeraLord(リグ済み、上記の量産手順がそのまま使える)、Slime, Direwolf, Griffin, Behemoth, YoungDragon, FlameDrake(非人型、未リグ)
+- **完了・配置済み(12体、人型は全て完了)**: Goblin, Priest, Archer(前セッションまで) + **Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, Warlord, NightBlade, ChimeraLord(2026-08-26セッションで量産パイプライン一括実行し追加)**
+  - Swordsmanは前セッションでは検証用にGoblin名義でしか変換しておらず、`Game/Assets/modelData/`に`Swordsman.*`として本配置されていなかった欠落があったため、今回まとめて本配置した。
+  - 9体とも`{Unit}.tkm`, `{Unit}.tks`, `{Unit}_{Idle,Move,NormalAttack,Skill,Death}.tka`, `{Unit}_{albedo,normal,metallicRoughness}.dds`の計10ファイルが`Game/Assets/modelData/`に存在し、非ゼロバイトであることを確認済み(全ファイルサイズチェック済み)。
+  - **Warlordのみ画面表示確認済み**(`Game.cpp`の検証用コードを一時的にWarlordに差し替えてビルド・実行→エラーダイアログ「テクスチャのロードに失敗しました。Assets/modelData/Warlord_metallic.dds」が発生→原因判明・修正済み(下記)→再実行して正常表示を確認。確認後は`Game.cpp`をGoblinに戻し再ビルド済み)。
+  - **Warlord固有のバグを発見・修正済み**: Warlordだけ`_meshy_raw/Warlord/`に`Warlord_metallicRoughness.png`が無く`Warlord_metallic.png`を使ったため、3ds Maxの`tkmExporter`がmetallicテクスチャのパスとして渡した`Warlord_metallic.png`のベース名(`Warlord_metallic`)をtkmファイルに焼き込んだ。一方DDS変換側は他ユニットと揃えて機械的に`Warlord_metallicRoughness.dds`という名前で出力していたため、tkmが参照するファイル名(`Warlord_metallic.dds`)と実際に存在するファイル名(`Warlord_metallicRoughness.dds`)が食い違い、ロードエラーになった。**`Warlord_metallicRoughness.dds`を`Warlord_metallic.dds`という名前でコピーして追加することで解決済み**(中身は同じテクスチャ、ファイル名だけの問題)。両方のファイルが`Game/Assets/modelData/`に存在する。→ 次に`UnitDef`にモデルパスを持たせる際、Warlordだけmetallicテクスチャのファイル名規則が`_metallic.dds`である点に注意(他11体は`_metallicRoughness.dds`)。
+  - Warlordの表示自体は緑肌・鎧・目とも正常な陰影で、「粉々」バグの再発は無いことを確認した。ただし検証用コードのスケール(`10.0`)がWarlordのメッシュサイズに対して大きすぎ、カメラがモデルの頭部にめり込んで顔全体は見えなかった(スケール調整は後日の統合作業でユニットごとに行う想定であり、今回は見送った)。
+  - **残り8体(Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, NightBlade, ChimeraLord)は画面表示未確認**(ファイル一式が揃っていること、ログにエラーが出ていないことは確認済みだが、実際にゲーム内で表示して目で見た確認はしていない)。
+- **未着手(残り6体、非人型)**: Slime, Direwolf, Griffin, Behemoth, YoungDragon, FlameDrake — 四足・非人型のため今回のBlender自動リグ手法がそのまま使えない可能性が高い。
 
 ### 次セッションでやること
 
-1. **最優先: リグ済み残り8体(Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, Warlord, NightBlade, ChimeraLord)を、上記で確立した量産パイプラインで変換・配置する。**
-   - 手順(Priestで確認済みの正解手順): (a) `blender.exe --background --python reanimate_and_export.py -- <blend> <outDir> <UnitName>` で5アクション再生成+FBX書き出し。(b) 5アクション分それぞれ`3dsmaxbatch.exe <export_unit_action.ms> -mxsString "fbxPath:..." ...`(**スクリプトファイルを最初の引数に、全パスはフォワードスラッシュで**)。(c) `png_to_dds.py`でalbedo/normal/metallicRoughness(Warlordのみ`_metallic.png`)を変換。(d) `.tkm`/`.tks`/`.tka`×5/`.dds`×3を`Game/Assets/modelData/`にコピー。
-   - Knightは前回中断時点でFBXエクスポート(reanimate_and_export.py)は完了していた可能性がある(スクラッチパッドが残っていれば`unit_export/Knight_*.fbx`を再利用できるが、消えていれば最初からで良い)。
-2. 残り6体(非人型: Slime, Direwolf, Griffin, Behemoth, YoungDragon, FlameDrake)はまだリグが無い。テクスチャ側は同じ修正で直るはずなので、リグ手法(骨なし静的メッシュ案 or 四足用リグ)の検討を先に進める。
+1. **(任意・推奨)今回一括変換した残り8体(Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, NightBlade, ChimeraLord)を実際にビルド・実行して画面表示確認する。** 手順は下記「表示確認の手順」参照。`Game.cpp`の`m_testModelRender`が読み込むファイル名を対象ユニット名に一時的に差し替えれば確認できる(確認後はGoblinに戻すこと)。Warlordで見つかったような「tkmが参照するテクスチャ名と実ファイル名の不一致」がまだ他の個体で潜んでいる可能性はゼロではない(ただしWarlordはmetallicRoughness.pngが無いという特殊ケースだったため、他11体では起きない可能性が高い)。
+2. **最優先: 残り6体(非人型: Slime, Direwolf, Griffin, Behemoth, YoungDragon, FlameDrake)のリグ手法を決める。** 四足用リグ、または当初案(骨なし静的メッシュ+コード側疑似アニメーション)のどちらで行くかを検討し、決まれば`rig_and_animate_unit.py`相当のスクリプトを作るか、既存スクリプトを流用する。テクスチャ変換(`png_to_dds.py`)自体は人型と同じ手順で問題ないはず。
 3. 全18体で表示確認が取れたら、`UnitDef.h`/`UnitDatabase.cpp`にモデル・アニメーションのファイルパス参照フィールドを追加し、`Game.cpp`の検証用コード(`m_testModelRender`関連、`[検証用]`コメント箇所)を本実装に置き換える。
 
 ## 現在のGame.cpp/Game.hの状態
@@ -164,5 +168,6 @@ Swordsmanで「UV再ベイクをせず、既存の`_meshy_raw/Swordsman/Swordsma
 1. PowerShellツールでビルド(上記)。
 2. `Start-Process -FilePath "Game\x64\Debug\Game.exe" -WorkingDirectory "Game\x64\Debug"の親である"Game"フォルダ -PassThru`でプロセス起動、`Start-Sleep`で数秒待つ。
 3. **起動直後のウィンドウは最小化されていることが多い** — `user32.dll`の`IsIconic`/`ShowWindow(hwnd, 9)`(SW_RESTORE)で復元してから`GetWindowRect`+`Graphics.CopyFromScreen`でスクリーンショットを撮ること(最小化のままキャプチャすると数十px四方の空画像になる)。
-4. `EnumChildWindows`+`GetWindowText`で子ウィンドウ(エラーダイアログの「OK」ボタンやメッセージ文字列)を読めば、`テクスチャのロードに失敗しました。Assets/modelData/xxx.dds`のようなエラー内容を画面を見ずに確認できる。ウィンドウタイトルが「エラー」になっていたら要注意。
-5. 確認後は`Stop-Process -Id <pid> -Force`で終了する(次のビルド/差し替えの前に必ず終了させること。実行中はdds/tkmファイルがロックされないが、ファイル差し替え後の再読み込みは行われないため再起動が必要)。
+4. `EnumChildWindows`+`GetWindowText`で子ウィンドウ(エラーダイアログの「OK」ボタンやメッセージ文字列)を読めば、`テクスチャのロードに失敗しました。Assets/modelData/xxx.dds`のようなエラー内容を画面を見ずに確認できる。ウィンドウタイトルが「エラー」になっていたら要注意。`FindWindow(null, "エラー")`は0を返すことがある(所有プロセスが違う「エラー」ウィンドウが他にもあるため)ので、`EnumWindows`+`GetWindowThreadProcessId`で対象PIDのトップレベルウィンドウに絞ってから探すこと。
+5. **(2026-08-26発見の罠)** ただの`ShowWindow`+`SetForegroundWindow`では前面化が失敗することがあり、その状態で`CopyFromScreen`すると同じ画面座標に重なっている**別のウィンドウ(全く無関係な常駐アプリ等)を誤ってキャプチャしてしまう**(サイズ・座標は取得できるのでエラーにはならず、気付きにくい)。確実に前面化するには、`GetForegroundWindow`で現在のフォアグラウンドのスレッドIDを取得→`AttachThreadInput`で自スレッドと関連付け→`SetWindowPos`でHWND_TOPMOST→`BringWindowToTop`→`SetForegroundWindow`→スクリーンショット→`AttachThreadInput`解除→`SetWindowPos`でHWND_NOTOPMOST(貼り付いたままにしない)、という手順を踏むこと。スクリーンショット取得後は`GetForegroundWindow()`で実際に狙ったhwndになっているか、あるいは撮れた画像自体を目視して対象アプリの内容(FPS表示など)が写っているか必ず確認する。
+6. 確認後は`Stop-Process -Id <pid> -Force`で終了する(次のビルド/差し替えの前に必ず終了させること。実行中はdds/tkmファイルがロックされないが、ファイル差し替え後の再読み込みは行われないため再起動が必要)。
