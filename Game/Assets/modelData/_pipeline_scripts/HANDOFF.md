@@ -42,19 +42,22 @@ Meshy出力5体は座標系が統一されており、Y軸=前後(進行)方向�
 - **四足の`Hips`ボーンに人型と同じ軸でDeath用のX回転をかけると胴体が捻れる**→四足の`Hips`はY軸(前後)方向に伸びるボーンで人型のZ軸方向と軸の意味が違うため。`rig_and_animate_quadruped.py`では脚を折り畳んでZ位置を沈める方式に変更済み。
 - **エンジン側バグ: ユニット名が9文字以上だとモデル表示時にクラッシュする(最重要・修正済み)**→`k2EngineLow/graphics/MeshParts.cpp`のマテリアルキャッシュキー生成用`sprintf_s`のバッファが`MAX_PATH`(260バイト)固定で、`fxFilePath`+シェーダーエントリポイント名+3テクスチャファイル名(ユニット名含む)を連結すると9文字以上の名前でオーバーフローしていた。`char materiayKey[1024]`+`sizeof(materiayKey)`に拡大して解決済み(Swordsman/ShadowStalkerで実証済み)。**日本語コメントを含むk2EngineLow/k2Engine配下のファイルをEditツールで編集する際はエンコーディング破損(Shift-JIS→UTF-8誤変換)に注意**。編集後は`file <path>`で元のエンコーディング(Non-ISO extended-ASCII=Shift-JIS)が保たれているか、`git diff`が意図した範囲に収まっているか必ず確認すること。詳細はWORKLOG参照。
 
-## 現在の進捗状況(2026-08-26セッション3時点、18体中)
+## 現在の進捗状況(2026-08-26セッション3時点) — **全18体完了**
 
-- **完了・配置済み・表示確認済み(17体)**:
-  - 人型12体: Goblin, Priest, Archer, Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, Warlord, NightBlade, ChimeraLord — **全員画面表示を目視確認済み**。
-  - 四足5体: Direwolf, Griffin, Behemoth, YoungDragon, FlameDrake — **全員画面表示を目視確認済み**。
-  - 全員`.tkm`/`.tks`/`.tka`×5/`.dds`×3が`Game/Assets/modelData/`に存在し、テクスチャ・スキニングとも正常表示。
-- **要修正(1体)**: Slime — `_meshy_raw/Slime/Slime.fbx`と付属テクスチャが実際には無関係な人型キャラクター(赤マント+甲冑)のデータになっている。MeshyAI管理画面から正しいSlimeモデルを再生成/再ダウンロードする必要がある(ユーザー側作業)。再取得できれば四足リグではなく別途(元々単純形状なので骨なし静的メッシュ+スケールアニメ等でも可)対応する。
-- リグ済みBlenderファイルは`_pipeline_scripts/rigged_blends/{Unit}_rigged.blend`(人型)に保存済み。四足5体のリグ済みblendは今回セッションのスクラッチパッドに生成しただけで恒久保存はしていない(再生成する場合は`rig_and_animate_quadruped.py`を再実行すれば数分で作り直せる)。素材一式(生FBX+テクスチャ)は`Game/Assets/modelData/_meshy_raw/{UnitName}/`に18体全て整理済み(Slimeのみ内容が誤り)。
+- **完了・配置済み・表示確認済み(18体、全ユニット)**:
+  - 人型12体: Goblin, Priest, Archer, Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, Warlord, NightBlade, ChimeraLord
+  - 四足5体: Direwolf, Griffin, Behemoth, YoungDragon, FlameDrake
+  - 単一ボーン1体: Slime(ユーザーがMeshyAIで再生成したデータを使用。詳細は下記「単一ボーンリグ」参照)
+  - **全員画面表示を目視確認済み**。`.tkm`/`.tks`/`.tka`×5/`.dds`×3(Warlord/Slimeのみ`albedo`/`normal`/`metallic`の3種)が`Game/Assets/modelData/`に存在し、テクスチャ・スキニングとも正常表示。
+- リグ済みBlenderファイルは`_pipeline_scripts/rigged_blends/{Unit}_rigged.blend`(人型)に保存済み。四足5体・Slimeのリグ済みblendは今回セッションのスクラッチパッドに生成しただけで恒久保存はしていない(再生成する場合は`rig_and_animate_quadruped.py`/`rig_and_animate_simple.py`を再実行すれば数分で作り直せる)。素材一式(生FBX+テクスチャ)は`Game/Assets/modelData/_meshy_raw/{UnitName}/`に18体全て整理済み(Slimeは新データが`Meshy_AI_stylized_toon_shaded__0826060225_texture_fbx/`サブフォルダに、旧誤データがフォルダ直下に残っているので混同注意)。
 
-## 次セッションでやること(優先度順)
+### 単一ボーンリグ(`rig_and_animate_simple.py`) — Slime用
 
-1. **最優先**: Slimeの再生成/再ダウンロード(ユーザー側でMeshyAI管理画面から対応)。取得できたら四足5体と同じ変換パイプライン、または単純形状ならもっと簡易な対応で`.tkm`/`.tka`等を作る。
-2. Slimeの表示確認が取れ次第(=全18体の表示確認完了)、`UnitDef.h`/`UnitDatabase.cpp`にモデル・アニメーションのファイルパス参照フィールドを追加し、`Game.cpp`の検証用コード(`m_testModelRender`関連、`[検証用]`コメント箇所)を本実装に置き換える。
+四足・人型どちらのボーン構造にも適合しない極小構造(涙滴型の胴体+小さな腕2本+短い足2本)のユニット向け。全頂点を単一の`Root`ボーンにウェイト1.0でバインドし、5アクションを`Root`のスケール・位置変化(スクワッシュ&ストレッチ)だけで表現する(Idle=呼吸、Move=バウンス、NormalAttack=前方伸縮、Skill=膨張、Death=収縮)。今後同様の単純形状ユニットが追加された場合に流用可能。
+
+## 次セッションでやること
+
+**全18体の表示確認が完了したため、次は`UnitDef.h`/`UnitDatabase.cpp`にモデル・アニメーションのファイルパス参照フィールドを追加し、`Game.cpp`の検証用コード(`m_testModelRender`関連、`[検証用]`コメント箇所)を本実装に置き換える段階。** これによりユニットごとに正しいモデル/アニメーションが自動的にロードされるようになる。スケール値(現状全員一律`10.0`で、Warlord等一部は大きすぎてカメラにめり込む)もこの本実装時にユニットごと調整が必要。
 
 ## Game.cpp/Game.hの現状
 

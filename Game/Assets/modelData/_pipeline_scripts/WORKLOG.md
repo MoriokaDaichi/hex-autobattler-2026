@@ -145,3 +145,13 @@ Direwolf/Behemoth/Griffin/YoungDragon/FlameDrakeの5体を`export_actions_separa
 ### 表示確認完了
 
 Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, NightBlade, ChimeraLord, Priest, Archer(人型10体)、Behemoth, YoungDragon, FlameDrake(四足3体)の計13体、全て画面表示を目視確認し正常(テクスチャ・スキニングとも破綻なし)。これで18体中17体(Slime以外)の表示確認が完了。
+
+## 2026-08-26(セッション3続き): Slime再生成データの変換・単一ボーンリグの確立(18体全完了)
+
+ユーザーがMeshyAIでSlimeを再生成。`_meshy_raw/Slime/Meshy_AI_stylized_toon_shaded__0826060225_texture_fbx/`に新しいfbx+テクスチャ(albedo/normal/metallic/roughness、Warlordと同様metallicRoughness結合版は無し)が追加された。旧(誤った人型データの)`Slime.fbx`等はフォルダ直下にそのまま残っているため、新データはサブフォルダ名で区別して扱った。
+
+Blenderでプレビューレンダーしたところ、今度こそ正しいSlime(涙滴型の胴体、頭頂部に角状の突起、左右に小さな腕、下部に短い足×2、大きな目)であることを確認。四足リグ・人型リグどちらのボーン構造にも適合しない極めてシンプルな形状だったため、`rig_and_animate_simple.py`を新規作成: 全頂点を単一の`Root`ボーンにウェイト1.0でバインドし、5アクションを`Root`ボーンのスケール・位置変化(スクワッシュ&ストレッチ)だけで表現する方式(Idle=呼吸、Move=バウンス跳躍、NormalAttack=前方への伸縮、Skill=大きく膨張、Death=潰れて縮む)。
+
+変換時の注意点(再掲): テクスチャファイル名が`Meshy_AI_stylized_toon_shaded__0826060225_texture*.png`という長い名前だったため、他ユニットと同じ命名規則(`Slime_albedo.png`等)にリネームしてから3ds Max変換に渡した(そのままでも動作した可能性はあるが、命名規則を揃える目的と、tkmに焼き込まれる参照名を短く保つため)。Warlordと同様`metallicRoughness`結合版が無く`metallic.png`のみのため、`specMap`として`metallic.png`をそのまま渡し、DDS変換後のファイル名(`Slime_metallic.dds`)もそれに合わせた。
+
+3ds Max変換・DDS化・配置・ゲーム内表示確認まで一気通貫で実施し、正常な緑色のSlime表示を確認(テクスチャ・シェーディングとも破綻なし)。これで**18体全ての表示確認が完了**。
