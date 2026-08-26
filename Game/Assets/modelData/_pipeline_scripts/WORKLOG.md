@@ -112,3 +112,36 @@ Direwolfを3ds Max変換→DDS化→配置→ゲーム内表示確認したと�
 Direwolf/Behemoth/Griffin/YoungDragon/FlameDrakeの5体を`export_actions_separately.py`→3dsmaxbatch(絶対パス)×5アクション→`png_to_dds.py`×3テクスチャの手順で本番変換し、`Game/Assets/modelData/`に配置(各10ファイル: tkm/tks/tka×5/dds×3)。DirewolfとGriffin(翼あり)は実際にビルド・実行して画面表示確認済み(共に正常、テクスチャ・スキニングとも破綻なし)。Behemoth/YoungDragon/FlameDrakeはファイル一式の配置のみ確認(表示確認は次回任意)。
 
 3dsmaxbatchが1回タイムアウト(5分)した以外は全て一発成功。タイムアウトしたBehemoth Skill/Deathアクションは個別に再実行して解決(3dsMax自体はハングしておらずプロセスは正常終了していた)。
+
+## 2026-08-26(セッション3): 表示未確認13体の確認、エンジン側バッファオーバーフローバグの発見・修正
+
+### Swordsman/ShadowStalkerで再現するクラッシュの調査
+
+表示未確認だった13体を順番に確認する作業中、SwordsmanとShadowStalkerで`Debug Assertion Failed! Expression: ("Buffer too small", 0)`(`minkernel/crts/ucrt/src/appcrt/stdio/output.cpp` line 282)というクラッシュが再現することを発見。Knight/Cultistは正常だった。
+
+切り分け手順:
+1. tkm/tks/tka/ddsのバイナリ構造を全てPowerShellで直接パースして検証(ヘッダー、マテリアルのテクスチャファイル名、頂点座標・法線・UVのNaN/Inf有無、ボーンインデックス範囲、インデックスバッファの範囲、DDSヘッダーのwidth/height)→**全て正常、ファイルの整合性に一切問題なし**という結論に至った。
+2. tka⇔tks⇔tkmを他ユニット(Knight)のものと入れ替えるクロステストを実施→**tkm自体(具体的にはメッシュ/マテリアル初期化コード)が原因**と判明(tkaもtksも無関係)。
+3. `k2EngineLow/graphics/MeshParts.cpp`の`InitFromTkmFile`→`CreateMeshFromTkmMesh`内、マテリアルキャッシュキー生成用の`sprintf_s(materiayKey, MAX_PATH, "%s, %s, %s, %s, %d×12, %s, %s, %s", fxFilePath, vsEntryPointFunc, vsSkinEntryPointFunc, psEntryPointFunc, ...colorBufferFormat[8]..., alphaBlendMode, isDepthWrite, isDepthTest, cullMode, albedoMapFileName, normalMapFileName, specularMapFileName)`に一時的な診断ログ(`fopen`でファイルに書き出す方式、`OutputDebugString`はGUIレス環境で確認できないため不採用)を仕込んで実測。
+
+### 根本原因: MAX_PATH(260バイト)バッファオーバーフロー(ユニット名依存)
+
+実測の結果、`isShadowReciever=true`の場合`psEntryPointFunc`が`"PSMainShadowReciever"`(20文字)になり、これと`vsEntryPointFunc`(32文字)・`vsSkinEntryPointFunc`(36文字)・`fxFilePath`(RenderGBufferパスで53文字)・3つのテクスチャファイル名(ユニット名を含む)を全部連結すると、**ユニット名が9文字以上のとき合計文字列長がMAX_PATH(260バイト)を超えてバッファオーバーフローする**ことが判明(区切り文字・数値部分を含めた概算式: `235 + 3×ユニット名文字数` ≤ 259 が安全条件、つまりユニット名8文字までが安全)。
+
+該当した/しそうだったユニット: Swordsman(9文字)❌、ShadowStalker(13文字)❌ともに実クラッシュを確認。OrcBerserker(12)・NightBlade(10)・ChimeraLord(11)・YoungDragon(11)・FlameDrake(10)も計算上危険域だったが、後述の修正後に全て正常動作を確認したため実際にクラッシュしていたかは未検証(修正が先に入ったため)。Knight(6)/Cultist(7)/Goblin(6)/Priest(6)/Archer(6)/Paladin(7)/Warlord(7)/Direwolf(8)/Griffin(7)/Behemoth(8)は計算上ぎりぎり安全域。
+
+### 修正
+
+`k2EngineLow/graphics/MeshParts.cpp`の該当箇所を`char materiayKey[MAX_PATH]`→`char materiayKey[1024]`、`sprintf_s(materiayKey, MAX_PATH, ...)`→`sprintf_s(materiayKey, sizeof(materiayKey), ...)`に変更。修正後、Swordsman/ShadowStalkerとも正常表示を確認。ユニット固有のデータ不備ではなく純粋なエンジン側バグだったため、`Game/`以外だが例外的に修正した。
+
+### 事故: 日本語コメントのエンコーディング破損と復旧
+
+上記修正の際、Editツールで`MeshParts.cpp`(元はShift-JIS/LF)を編集したところ、ファイル全体がUTF-8/CRLFとして誤って読み書きされ、Shift-JISの日本語コメントが不正なUTF-8として解釈されU+FFFD(置換文字)に文字化けした状態で保存されてしまう事故が発生(他セッションの`git diff`チェックで発覆)。
+
+対応: `git show HEAD:<path> > <path>`で元のShift-JIS内容を復元した上で、PowerShellで**Latin-1(1バイト=1文字のロスレスなコードページ)としてファイルを読み書き**することでバイト単位の安全な文字列置換を行い、意図した2行の修正だけを再適用した(`[System.Text.Encoding]::GetEncoding(28591)`を使用)。`git diff`が最終的に意図した2行分の差分のみになっていることを確認済み。
+
+**教訓**: 日本語(Shift-JIS)コメントを含むk2EngineLow/k2Engine配下のファイルをEditツールで編集すると、エンコーディングを壊す危険がある。エンジン共有コードに手を入れる際は、編集後に`file <path>`や`git diff`でエンコーディング/差分範囲を必ず確認すること。バイト単位の置換が必要な場合はLatin-1ラウンドトリップが安全。
+
+### 表示確認完了
+
+Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, NightBlade, ChimeraLord, Priest, Archer(人型10体)、Behemoth, YoungDragon, FlameDrake(四足3体)の計13体、全て画面表示を目視確認し正常(テクスチャ・スキニングとも破綻なし)。これで18体中17体(Slime以外)の表示確認が完了。

@@ -1,6 +1,6 @@
 # 引継ぎメモ: ユニット3Dモデル準備タスク
 
-作成日: 2026-08-25、最終更新: 2026-08-26(セッション2)。Notionタスク「ユニットの3Dモデル準備(制作・調達)」(期限8/27)。
+作成日: 2026-08-25、最終更新: 2026-08-26(セッション3)。Notionタスク「ユニットの3Dモデル準備(制作・調達)」(期限8/27)。
 
 このファイルは次セッション引継ぎ用で、現状・確立済み手順・次にやることのみを載せる。過去の試行錯誤や誤診断の経緯は[WORKLOG.md](WORKLOG.md)に分離済み。
 
@@ -40,22 +40,21 @@ Meshy出力5体は座標系が統一されており、Y軸=前後(進行)方向�
 - **3dsmaxbatchへのテクスチャパスは相対パスだとtkmに埋め込まれない(最重要)**→`albedoPath`/`normalPath`/`metallicPath`が相対パスだと3ds Max側で`openBitMap`が失敗しundefinedのまま扱われ、tkmのマテリアル情報(ファイル名)が空文字列で書き込まれる。ゲーム内では均一な赤色になる(エラーダイアログは出ない)。必ず絶対パス(`C:/my/...`)で渡すこと。人型12体のtkmは(理由不明だが)問題なかったことをGoblinで確認済み。
 - **`shaderFxPath`に3ds Max付属`DefaultPhong.fx`は使えない**→`g_useNormalMap`等のプロパティが無くエラー。`tools/3dsMaxShader/k2EngineShader.fx`を使うこと。
 - **四足の`Hips`ボーンに人型と同じ軸でDeath用のX回転をかけると胴体が捻れる**→四足の`Hips`はY軸(前後)方向に伸びるボーンで人型のZ軸方向と軸の意味が違うため。`rig_and_animate_quadruped.py`では脚を折り畳んでZ位置を沈める方式に変更済み。
+- **エンジン側バグ: ユニット名が9文字以上だとモデル表示時にクラッシュする(最重要・修正済み)**→`k2EngineLow/graphics/MeshParts.cpp`のマテリアルキャッシュキー生成用`sprintf_s`のバッファが`MAX_PATH`(260バイト)固定で、`fxFilePath`+シェーダーエントリポイント名+3テクスチャファイル名(ユニット名含む)を連結すると9文字以上の名前でオーバーフローしていた。`char materiayKey[1024]`+`sizeof(materiayKey)`に拡大して解決済み(Swordsman/ShadowStalkerで実証済み)。**日本語コメントを含むk2EngineLow/k2Engine配下のファイルをEditツールで編集する際はエンコーディング破損(Shift-JIS→UTF-8誤変換)に注意**。編集後は`file <path>`で元のエンコーディング(Non-ISO extended-ASCII=Shift-JIS)が保たれているか、`git diff`が意図した範囲に収まっているか必ず確認すること。詳細はWORKLOG参照。
 
-## 現在の進捗状況(2026-08-26セッション2時点、18体中)
+## 現在の進捗状況(2026-08-26セッション3時点、18体中)
 
-- **完了・配置済み(17体)**:
-  - 人型12体: Goblin, Priest, Archer, Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, Warlord, NightBlade, ChimeraLord
-  - 四足5体: Direwolf, Griffin, Behemoth, YoungDragon, FlameDrake
-  - 全員`.tkm`/`.tks`/`.tka`×5/`.dds`×3が`Game/Assets/modelData/`に存在し非ゼロバイトであることを確認済み。
-  - **画面表示を目視確認済みなのはGoblin, Warlord(人型)、Direwolf, Griffin(四足)のみ**。残り13体はファイル一式が揃っていることのみ確認済みで、実際の表示確認はまだ。
+- **完了・配置済み・表示確認済み(17体)**:
+  - 人型12体: Goblin, Priest, Archer, Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, Warlord, NightBlade, ChimeraLord — **全員画面表示を目視確認済み**。
+  - 四足5体: Direwolf, Griffin, Behemoth, YoungDragon, FlameDrake — **全員画面表示を目視確認済み**。
+  - 全員`.tkm`/`.tks`/`.tka`×5/`.dds`×3が`Game/Assets/modelData/`に存在し、テクスチャ・スキニングとも正常表示。
 - **要修正(1体)**: Slime — `_meshy_raw/Slime/Slime.fbx`と付属テクスチャが実際には無関係な人型キャラクター(赤マント+甲冑)のデータになっている。MeshyAI管理画面から正しいSlimeモデルを再生成/再ダウンロードする必要がある(ユーザー側作業)。再取得できれば四足リグではなく別途(元々単純形状なので骨なし静的メッシュ+スケールアニメ等でも可)対応する。
 - リグ済みBlenderファイルは`_pipeline_scripts/rigged_blends/{Unit}_rigged.blend`(人型)に保存済み。四足5体のリグ済みblendは今回セッションのスクラッチパッドに生成しただけで恒久保存はしていない(再生成する場合は`rig_and_animate_quadruped.py`を再実行すれば数分で作り直せる)。素材一式(生FBX+テクスチャ)は`Game/Assets/modelData/_meshy_raw/{UnitName}/`に18体全て整理済み(Slimeのみ内容が誤り)。
 
 ## 次セッションでやること(優先度順)
 
 1. **最優先**: Slimeの再生成/再ダウンロード(ユーザー側でMeshyAI管理画面から対応)。取得できたら四足5体と同じ変換パイプライン、または単純形状ならもっと簡易な対応で`.tkm`/`.tka`等を作る。
-2. (任意・推奨)完了済みだが表示未確認の13体(人型10体: Swordsman, Knight, Cultist, ShadowStalker, OrcBerserker, Paladin, NightBlade, ChimeraLord, Priest, Archer / 四足3体: Behemoth, YoungDragon, FlameDrake)を実際にビルド・実行して画面表示確認する。手順は下記「表示確認の手順」参照。`Game.cpp`の`m_testModelRender`が読み込むファイル名を対象ユニット名に一時的に差し替えれば確認できる(確認後はGoblinに戻すこと)。
-3. 全18体の表示確認が取れたら、`UnitDef.h`/`UnitDatabase.cpp`にモデル・アニメーションのファイルパス参照フィールドを追加し、`Game.cpp`の検証用コード(`m_testModelRender`関連、`[検証用]`コメント箇所)を本実装に置き換える。
+2. Slimeの表示確認が取れ次第(=全18体の表示確認完了)、`UnitDef.h`/`UnitDatabase.cpp`にモデル・アニメーションのファイルパス参照フィールドを追加し、`Game.cpp`の検証用コード(`m_testModelRender`関連、`[検証用]`コメント箇所)を本実装に置き換える。
 
 ## Game.cpp/Game.hの現状
 
