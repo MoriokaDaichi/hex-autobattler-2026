@@ -240,6 +240,7 @@
     <ClCompile Include="UnitDatabase.cpp" />
     <ClCompile Include="UnitDef.cpp" />
     <ClCompile Include="UnitInstance.cpp" />
+    <ClCompile Include="UnitModelDisplay.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CombatEngine.h" />
@@ -254,6 +255,7 @@
     <ClInclude Include="UnitDatabase.h" />
     <ClInclude Include="UnitDef.h" />
     <ClInclude Include="UnitInstance.h" />
+    <ClInclude Include="UnitModelDisplay.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -22,6 +22,13 @@ public:
 	void OnForwardRender(RenderContext& rc) override;
 	void OnTlanslucentRender(RenderContext& rc) override;
 
+	/// <summary>
+	/// axial座標(q,r)を、このグリッドが使っているワールド座標系(盤面中心が原点)に変換する。
+	/// グリッド線・ゾーン塗りの座標計算そのものだが、ユニットモデルの配置(UnitModelDisplay)からも
+	/// 同じ座標系を再利用するためpublic staticとして公開している。
+	/// </summary>
+	static Vector3 CalcTileCenter(int q, int r);
+
 private:
 	struct Vertex
 	{
@@ -45,7 +52,6 @@ private:
 
 	void BuildGridLines();
 	void BuildTileFills(const GameState& gameState);
-	Vector3 CalcTileCenter(int q, int r) const;
 
 	void InitRootSignature();
 	void InitShaders();

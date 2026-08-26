@@ -136,7 +136,7 @@ void HexGridRenderer::InitDescriptorHeap()
 	m_descriptorHeap.Commit();
 }
 
-Vector3 HexGridRenderer::CalcTileCenter(int q, int r) const
+Vector3 HexGridRenderer::CalcTileCenter(int q, int r)
 {
 	// 盤面中心(kCenterQ, kCenterR)がワールド原点になるようにオフセットしてから変換する。
 	float offsetQ = static_cast<float>(q) - kCenterQ;

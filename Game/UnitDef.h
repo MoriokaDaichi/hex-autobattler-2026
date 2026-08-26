@@ -21,10 +21,52 @@ enum class SkillEffectType
 /// </summary>
 struct UnitDef
 {
+	UnitDef() = default;
+
+	/// <summary>
+	/// UnitDatabase.cppで使われている既存の初期化順(name, cost, HP, ATK, skillThreshold,
+	/// skillType, attackRange, skillRange, moveSpeed)と完全に一致するコンストラクタ。
+	/// name以外の残りのフィールドはUnitDatabase.cpp側でこの後メンバ代入で設定される。
+	/// nameを受け取った時点でモデル/アニメーションのファイルパスを自動的に組み立てて
+	/// 格納するため、UnitDatabase.cpp側でモデルパスを個別に設定する必要はない。
+	/// </summary>
+	UnitDef(const std::string& name_, int cost_, int baseHP_, int baseAttack_,
+		int skillThreshold_, SkillEffectType skillType_, int attackRange_, int skillRange_, float moveSpeed_)
+		: name(name_)
+		, cost(cost_)
+		, baseHP(baseHP_)
+		, baseAttack(baseAttack_)
+		, skillThreshold(skillThreshold_)
+		, skillType(skillType_)
+		, attackRange(attackRange_)
+		, skillRange(skillRange_)
+		, moveSpeed(moveSpeed_)
+	{
+		// モデル/アニメーションのファイルパスは、命名規則(Assets/modelData/{name}.tkm 等)から
+		// 100%機械的に導出できるため、name確定時にここで自動生成する。
+		// テクスチャ(albedo/normal/metallicRoughness)はtkmに焼き込まれた参照から自動ロードされるため、
+		// パスを個別に保持する必要はない。
+		const std::string kModelDir = "Assets/modelData/";
+		modelPath = kModelDir + name + ".tkm";
+		idleAnimPath = kModelDir + name + "_Idle.tka";
+		moveAnimPath = kModelDir + name + "_Move.tka";
+		normalAttackAnimPath = kModelDir + name + "_NormalAttack.tka";
+		skillAnimPath = kModelDir + name + "_Skill.tka";
+		deathAnimPath = kModelDir + name + "_Death.tka";
+	}
+
 	std::string name;
 	int cost = 1;
 	int baseHP = 100;
 	int baseAttack = 10;                            // 攻撃力。Physical属性の攻撃のダメージ計算に使う。
+
+	// 以下はnameから自動的に導出されるモデル/アニメーションのファイルパス(コンストラクタ参照)。
+	std::string modelPath;                          // モデル(.tkm)のファイルパス。
+	std::string idleAnimPath;                        // 待機アニメーション(.tka)のファイルパス。
+	std::string moveAnimPath;                        // 移動アニメーション(.tka)のファイルパス。
+	std::string normalAttackAnimPath;                // 通常攻撃アニメーション(.tka)のファイルパス。
+	std::string skillAnimPath;                       // 必殺技アニメーション(.tka)のファイルパス。
+	std::string deathAnimPath;                       // 死亡アニメーション(.tka)のファイルパス。
 
 	int skillThreshold = 3;                        // このゲージ値で必殺技が発動する。
 	SkillEffectType skillType = SkillEffectType::Damage; // 必殺技の効果種別。

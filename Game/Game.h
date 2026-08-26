@@ -16,6 +16,7 @@
 #include "EnemyStage.h"
 #include "EnemyFactory.h"
 #include "HexGridRenderer.h"
+#include "UnitModelDisplay.h"
 
 class Game : public IGameObject
 {
@@ -46,8 +47,5 @@ private:
 	EnemyFactory m_enemyFactory;
 	std::vector<EnemyStage> m_enemyStages;
 	HexGridRenderer m_hexGridRenderer;
-
-	// [検証用] Goblinの.tkm/.tka表示確認テスト。確認後は削除する。
-	ModelRender m_testModelRender;
-	AnimationClip m_testAnimClips[5];
+	UnitModelDisplay m_unitModelDisplay; // players[0].boardのユニットを3D表示する。
 };

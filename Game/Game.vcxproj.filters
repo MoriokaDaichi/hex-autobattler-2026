@@ -45,6 +45,9 @@
     <ClCompile Include="HexGridRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="UnitModelDisplay.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -77,6 +80,9 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="HexGridRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UnitModelDisplay.h">
       <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
