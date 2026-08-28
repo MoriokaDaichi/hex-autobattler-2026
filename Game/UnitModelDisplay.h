@@ -3,6 +3,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include "Player.h"
 
@@ -39,9 +40,11 @@ private:
 	};
 
 	/// <summary>
-	/// boardの構成(サイズ+各要素のUnitDef*の並び)が前回のUpdate()時点から変化しているか確認し、
-	/// 変化していれば表示エンティティ一式を作り直す。ModelRender::Init()はtkmをディスクから
-	/// 再ロードするため、変化が無いフレームでは何もしない(呼ばない)。
+	/// boardの構成(サイズ+各要素の「UnitDef*とstarLevelの組」の並び)が前回のUpdate()時点から
+	/// 変化しているか確認し、変化していれば表示エンティティ一式を作り直す。ModelRender::Init()はtkmを
+	/// ディスクから再ロードするため、変化が無いフレームでは何もしない(呼ばない)。
+	/// starLevelもシグネチャに含めるのは、合成で同じユニットの星が上がった場合(UnitDef*は不変)にも
+	/// 表示スケールを更新する必要があるため。
 	/// </summary>
 	void RebuildIfBoardChanged(const Player& player);
 
@@ -53,5 +56,6 @@ private:
 
 	std::map<std::string, std::array<AnimationClip, 5>> m_animClipCache;
 	std::vector<DisplayEntry> m_displayEntries;      // boardと同じ並び順で対応する表示用モデル一式。
-	std::vector<const UnitDef*> m_lastBoardSignature; // 前回のUpdate()時点でのboard構成(変化検出用)。
+	// 前回のUpdate()時点でのboard構成(変化検出用)。各要素は{UnitDef*, starLevel}の組。
+	std::vector<std::pair<const UnitDef*, int>> m_lastBoardSignature;
 };
