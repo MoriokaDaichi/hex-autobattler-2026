@@ -37,6 +37,15 @@ public:
 		GrantXP(player, kPassiveXPPerRound);
 	}
 
+	/// <summary>
+	/// currentLevelから次のレベルに上がるために必要な経験値(UI表示用の公開アクセサ)。
+	/// 最大レベル到達時は0。
+	/// </summary>
+	int XPForNextLevel(int currentLevel) const
+	{
+		return GetXPRequiredForNextLevel(currentLevel);
+	}
+
 private:
 	/// <summary>
 	/// currentLevelから次のレベルに上がるために必要な経験値を返す(終盤ほど重くなる)。

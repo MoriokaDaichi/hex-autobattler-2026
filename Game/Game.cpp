@@ -67,6 +67,9 @@ void Game::Update()
 	// マウス・キーボード・ゲームパッドを横断するカーソル/選択状態を更新する。
 	m_cursorSelection.Update();
 
+	// ショップUIの操作フィードバック(数秒で自動的に消える)の残り時間を進める。
+	m_shopUI.UpdateFeedbackTimer(g_gameTime->GetFrameDeltaTime());
+
 	if (m_gameState.currentPhase == Phase::Preparation)
 	{
 		// フォーカス中の一覧の実際の要素数に合わせて、カーソルが範囲外を指さないようにする。
@@ -104,12 +107,26 @@ void Game::Update()
 		{
 			Player& player = m_gameState.players[0];
 			int shopIndex = (m_cursorSelection.GetFocus() == InputFocus::Shop) ? m_cursorSelection.GetListCursorIndex() : 0;
-			bool success = !m_currentShop.empty() && player.BuyUnit(m_currentShop[shopIndex]);
+			const UnitDef* target = (shopIndex >= 0 && shopIndex < (int)m_currentShop.size()) ? m_currentShop[shopIndex] : nullptr;
+			bool success = target != nullptr && player.BuyUnit(target);
 
 			wchar_t buf[256];
 			swprintf_s(buf, L"Buy result: %hs, Shop index: %d, Gold left: %d, Bench count: %d\n",
 				success ? "true" : "false", shopIndex, player.gold, (int)player.bench.size());
 			OutputDebugString(buf);
+
+			if (success)
+			{
+				wchar_t fb[128];
+				swprintf_s(fb, L"購入: %hs  (-%dG)", target->name.c_str(), target->cost);
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
+			}
+			else if (target != nullptr)
+			{
+				wchar_t fb[128];
+				swprintf_s(fb, L"ゴールド不足: %hs は %dG 必要 (所持 %dG)", target->name.c_str(), target->cost, player.gold);
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Failure);
+			}
 		}
 
 		// Bボタンで次のフェーズに進む。
@@ -133,6 +150,17 @@ void Game::Update()
 			swprintf_s(buf, L"Place result: %hs, Bench index: %d, Hex: (%d,%d), Bench count: %d, Board count: %d\n",
 				success ? "true" : "false", benchIndex, targetHex.q, targetHex.r, (int)player.bench.size(), (int)player.board.size());
 			OutputDebugString(buf);
+
+			if (success)
+			{
+				wchar_t fb[128];
+				swprintf_s(fb, L"配置: マス(%d,%d)  盤面 %d/%d", targetHex.q, targetHex.r, (int)player.board.size(), player.GetMaxBoardSize());
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
+			}
+			else
+			{
+				m_shopUI.PushFeedback(L"配置できません (盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
+			}
 		}
 
 		// Yボタンで、ゴールドを払ってショップをリロールする。
@@ -156,10 +184,18 @@ void Game::Update()
 						(int)i, m_currentShop[i]->name.c_str(), m_currentShop[i]->cost);
 					OutputDebugString(buf);
 				}
+
+				wchar_t fb[128];
+				swprintf_s(fb, L"リロール (-%dG)  所持 %dG", kRerollCost, player.gold);
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
 			}
 			else
 			{
 				OutputDebugString(L"Not enough gold to reroll the shop.\n");
+
+				wchar_t fb[128];
+				swprintf_s(fb, L"ゴールド不足: リロールに %dG 必要 (所持 %dG)", kRerollCost, player.gold);
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Failure);
 			}
 		}
 
@@ -174,18 +210,56 @@ void Game::Update()
 			swprintf_s(buf, L"Sell result: %hs, Bench index: %d, Gold: %d, Bench count: %d\n",
 				success ? "true" : "false", benchIndex, player.gold, (int)player.bench.size());
 			OutputDebugString(buf);
+
+			if (success)
+			{
+				wchar_t fb[128];
+				swprintf_s(fb, L"売却  所持 %dG", player.gold);
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
+			}
+			else
+			{
+				m_shopUI.PushFeedback(L"売却できません (ベンチが空)", ShopUIRenderer::FeedbackLevel::Failure);
+			}
 		}
 
 		// RB1ボタンで、ゴールドを払って経験値を購入する(LevelSystemの中でレベルアップ処理も行う)。
 		if (g_pad[0]->IsTrigger(enButtonRB1))
 		{
 			Player& player = m_gameState.players[0];
+			int levelBefore = player.level;
 			bool success = m_levelSystem.BuyXP(player);
 
 			wchar_t buf[256];
 			swprintf_s(buf, L"Buy XP result: %hs, Gold: %d, Level: %d, XP: %d\n",
 				success ? "true" : "false", player.gold, player.level, player.xp);
 			OutputDebugString(buf);
+
+			if (success)
+			{
+				wchar_t fb[128];
+				if (player.level > levelBefore)
+				{
+					swprintf_s(fb, L"XP購入 +%d  ->  Lv %d! (XP %d/%d)",
+						LevelSystem::kBuyXPAmount, player.level, player.xp, m_levelSystem.XPForNextLevel(player.level));
+				}
+				else
+				{
+					swprintf_s(fb, L"XP購入 +%d  (XP %d/%d)",
+						LevelSystem::kBuyXPAmount, player.xp, m_levelSystem.XPForNextLevel(player.level));
+				}
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
+			}
+			else if (player.level >= LevelSystem::kMaxLevel)
+			{
+				m_shopUI.PushFeedback(L"既に最大レベルです", ShopUIRenderer::FeedbackLevel::Failure);
+			}
+			else
+			{
+				wchar_t fb[128];
+				swprintf_s(fb, L"ゴールド不足: XP購入に %dG 必要 (所持 %dG)", LevelSystem::kBuyXPCost, player.gold);
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Failure);
+			}
 		}
 	}
 	else if (m_gameState.currentPhase == Phase::Combat)
@@ -425,4 +499,23 @@ void Game::Render(RenderContext& rc)
 	m_hexGridRenderer.Draw(rc, m_gameState);
 
 	m_unitModelDisplay.Draw(rc);
+
+	// 準備フェーズのみ、画面下部にショップバーを表示する。
+	if (m_gameState.currentPhase == Phase::Preparation)
+	{
+		const Player& player = m_gameState.players[0];
+		bool shopFocused = m_cursorSelection.GetFocus() == InputFocus::Shop;
+		int shopCursorIndex = m_cursorSelection.GetListCursorIndex();
+		const int kRerollCost = 2; // Game::Update()のYボタン処理と同じ値。
+
+		m_shopUI.Draw(
+			rc,
+			m_currentShop,
+			player,
+			m_levelSystem.XPForNextLevel(player.level),
+			kRerollCost,
+			LevelSystem::kBuyXPCost,
+			shopFocused ? shopCursorIndex : -1,
+			shopFocused);
+	}
 }

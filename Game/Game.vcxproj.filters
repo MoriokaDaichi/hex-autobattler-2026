@@ -51,6 +51,9 @@
     <ClCompile Include="UnitModelDisplay.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="ShopUIRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -89,6 +92,9 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="UnitModelDisplay.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="ShopUIRenderer.h">
       <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
