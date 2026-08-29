@@ -70,7 +70,15 @@ void Game::Update()
 	// ショップUIの操作フィードバック(数秒で自動的に消える)の残り時間を進める。
 	m_shopUI.UpdateFeedbackTimer(g_gameTime->GetFrameDeltaTime());
 
-	if (m_gameState.currentPhase == Phase::Preparation)
+	if (m_gameState.currentPhase == Phase::Title)
+	{
+		// Aボタンで準備フェーズへ進む。
+		if (g_pad[0]->IsTrigger(enButtonA))
+		{
+			m_gameState.currentPhase = Phase::Preparation;
+		}
+	}
+	else if (m_gameState.currentPhase == Phase::Preparation)
 	{
 		// フォーカス中の一覧の実際の要素数に合わせて、カーソルが範囲外を指さないようにする。
 		Player& prepPlayer = m_gameState.players[0];
@@ -521,6 +529,13 @@ std::vector<EnemyStage> Game::BuildEnemyStages()
 
 void Game::Render(RenderContext& rc)
 {
+	// タイトル画面中は盤面・各種HUDを一切出さず、タイトル文字列のみを表示する。
+	if (m_gameState.currentPhase == Phase::Title)
+	{
+		m_titleUI.Draw(rc, g_gameTime->GetFrameDeltaTime());
+		return;
+	}
+
 	m_hexGridRenderer.Draw(rc, m_gameState);
 
 	m_unitModelDisplay.Draw(rc);

@@ -7,6 +7,7 @@
 /// </summary>
 enum class Phase
 {
+	Title,        // タイトル画面。何らかのボタン入力でPreparationへ遷移する。
 	Preparation,  // 準備フェーズ(ショップ・配置)
 	Combat,       // 戦闘フェーズ
 	Result,       // 結果表示・ラウンド終了処理
@@ -25,5 +26,5 @@ struct GameState
 	std::vector<Player> players; // players[0]のみを使用する(人間プレイヤー)。
 	int roundNumber = 1;
 	int lossCount = 0; // 現在の敵(roundNumber)に対する連続敗北回数。勝つか敵が変わるとリセットされる。
-	Phase currentPhase = Phase::Preparation;
+	Phase currentPhase = Phase::Title;
 };

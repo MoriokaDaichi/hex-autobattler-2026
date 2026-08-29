@@ -22,6 +22,7 @@
 #include "BoardUIRenderer.h"
 #include "PlayerStatusUIRenderer.h"
 #include "RoundRecordUIRenderer.h"
+#include "TitleUIRenderer.h"
 #include "CursorSelectionSystem.h"
 
 class Game : public IGameObject
@@ -58,6 +59,7 @@ private:
 	BoardUIRenderer m_boardUI; // 戦闘中のHPバー / 準備フェーズのベンチ一覧を2D表示する。
 	PlayerStatusUIRenderer m_playerStatusUI; // 所持ゴールド・レベル/XPゲージをフェーズを問わず常時表示する。
 	RoundRecordUIRenderer m_roundRecordUI; // 現在ラウンド数/残りラウンド数・連敗カウントを常時2D表示する。
+	TitleUIRenderer m_titleUI; // タイトル画面(Phase::Title)のタイトル文字列・スタート操作ガイドを2D表示する。
 	CursorSelectionSystem m_cursorSelection; // マウス・キーボード・ゲームパッドを横断するカーソル/選択状態。
 
 	// 戦闘フェーズの複数フレーム化用。突入時に1回だけシミュレーション+集計を行い(m_combatSimDone=true)、
