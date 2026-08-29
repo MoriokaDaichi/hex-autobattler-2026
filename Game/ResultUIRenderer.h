@@ -35,8 +35,9 @@ public:
 	/// <summary>
 	/// Phase::Victory中、毎フレーム呼ぶ。
 	/// </summary>
+	/// <param name="totalRounds">GameState::kTotalRounds。全クリア文言に添える。</param>
 	/// <param name="deltaTime">再スタート案内の点滅用。</param>
-	void DrawVictory(RenderContext& rc, float deltaTime);
+	void DrawVictory(RenderContext& rc, int totalRounds, float deltaTime);
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;

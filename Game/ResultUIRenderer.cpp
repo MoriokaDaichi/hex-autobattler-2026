@@ -43,6 +43,33 @@ namespace
 	// アルファブレンドが機能しないため、一定間隔で描画自体をON/OFFして点滅を表現する
 	// (TitleUIRendererのPRESS [A] TO STARTと同じ方式)。
 	const float kBlinkIntervalSec = 0.5f;
+
+	// --- GameOver/Victory背景の暗幕 ---
+	// このFontEngineはアルファブレンドが機能せず、半透明の矩形を敷く手段が無い(Sprite経由で
+	// 敷くにはテクスチャアセットの新規追加が必要になり手が重い)ため、BoardUIRendererのHPバーと
+	// 同じ「'#'を敷き詰める」手法を流用し、ほぼ黒(不透明)の'#'ブロックをテキストの背後に描画して
+	// 盤面の色付きヘックスタイルとの重なりによる視認性低下を防ぐ。
+	const Vector4 kBackdropColor(0.03f, 0.03f, 0.04f, 1.0f);
+	const float kBackdropScale = 1.6f;
+	const float kBackdropX = -280.0f;
+	const float kBackdropY = 230.0f;
+	const wchar_t* kBackdropBlock =
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################\n"
+		L"##################";
 }
 
 void ResultUIRenderer::DrawRoundResult(RenderContext& rc, CombatResult result)
@@ -62,10 +89,11 @@ void ResultUIRenderer::DrawGameOver(RenderContext& rc, int reachedRound, int tot
 	g_renderingEngine->AddRenderObject(this);
 }
 
-void ResultUIRenderer::DrawVictory(RenderContext& rc, float deltaTime)
+void ResultUIRenderer::DrawVictory(RenderContext& rc, int totalRounds, float deltaTime)
 {
 	if (m_mode != Mode::Victory) m_elapsedTime = 0.0f;
 	m_mode = Mode::Victory;
+	m_totalRounds = totalRounds;
 	m_elapsedTime += deltaTime;
 	g_renderingEngine->AddRenderObject(this);
 }
@@ -89,6 +117,18 @@ void ResultUIRenderer::OnRender2D(RenderContext& rc)
 	else if (m_mode == Mode::GameOver || m_mode == Mode::Victory)
 	{
 		bool isVictory = (m_mode == Mode::Victory);
+
+		// 盤面(色付きヘックスタイル)と文字が重なって読みにくくなるため、
+		// 先に暗幕を敷いてから文字を描画する(描画順=手前奥、後勝ち)。
+		// '#'の字間・行間にできる隙間を埋めるため、半文字/半行分ずらした4枚を重ねて描画し、
+		// ほぼ隙間の無い塗りつぶしに見せる(Font::SetShadowParamの8方向オフセットと同じ考え方)。
+		const float kBackdropOffsetX = 18.0f;
+		const float kBackdropOffsetY = 20.0f;
+		m_font.Draw(kBackdropBlock, Vector2(kBackdropX, kBackdropY), kBackdropColor, 0.0f, kBackdropScale, kTopLeftPivot);
+		m_font.Draw(kBackdropBlock, Vector2(kBackdropX + kBackdropOffsetX, kBackdropY), kBackdropColor, 0.0f, kBackdropScale, kTopLeftPivot);
+		m_font.Draw(kBackdropBlock, Vector2(kBackdropX, kBackdropY - kBackdropOffsetY), kBackdropColor, 0.0f, kBackdropScale, kTopLeftPivot);
+		m_font.Draw(kBackdropBlock, Vector2(kBackdropX + kBackdropOffsetX, kBackdropY - kBackdropOffsetY), kBackdropColor, 0.0f, kBackdropScale, kTopLeftPivot);
+
 		const wchar_t* bigText = isVictory ? kVictoryText : kGameOverText;
 		const Vector4& bigColor = isVictory ? kVictoryColor : kGameOverColor;
 		int bigCharCount = isVictory ? 8 : 9;
@@ -96,9 +136,20 @@ void ResultUIRenderer::OnRender2D(RenderContext& rc)
 		m_font.Draw(bigText, Vector2(bigX, kBigTitleY), bigColor, 0.0f, kBigTitleScale, kTopLeftPivot);
 
 		wchar_t subLine[64];
-		swprintf_s(subLine, L"到達ラウンド %d / %d", m_reachedRound, m_totalRounds);
-		// 全角文字は半角の約2倍幅として概算する。
-		int subCharCount = 8 /*"到達ラウンド"*/ * 2 + 1 /*" "*/ + 5 /*" %d / %d"相当の桁*/;
+		int subCharCount;
+		if (isVictory)
+		{
+			// Victoryは「どこまで進んだか」ではなく全クリアそのものを祝う文言にする
+			// (到達ラウンド表記だと常にkTotalRounds/kTotalRoundsで冗長なため)。
+			swprintf_s(subLine, L"全%dラウンド制覇!", m_totalRounds);
+			subCharCount = 1 /*"全"*/ * 2 + 3 /*"%d"相当*/ + 6 /*"ラウンド"*/ * 2 + 2 /*"制覇"*/ * 2 + 1 /*"!"*/;
+		}
+		else
+		{
+			swprintf_s(subLine, L"到達ラウンド %d / %d", m_reachedRound, m_totalRounds);
+			// 全角文字は半角の約2倍幅として概算する。
+			subCharCount = 6 /*"到達ラウンド"*/ * 2 + 1 /*" "*/ + 5 /*" %d / %d"相当の桁*/;
+		}
 		float subX = CenteredStartX(subCharCount, kSubScale);
 		m_font.Draw(subLine, Vector2(subX, kSubY), kSubColor, 0.0f, kSubScale, kTopLeftPivot);
 

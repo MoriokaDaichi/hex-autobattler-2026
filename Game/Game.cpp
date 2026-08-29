@@ -629,6 +629,6 @@ void Game::Render(RenderContext& rc)
 	}
 	else if (m_gameState.currentPhase == Phase::Victory)
 	{
-		m_resultUI.DrawVictory(rc, g_gameTime->GetFrameDeltaTime());
+		m_resultUI.DrawVictory(rc, GameState::kTotalRounds, g_gameTime->GetFrameDeltaTime());
 	}
 }
