@@ -5,6 +5,12 @@
 #include "UnitInstance.h"
 #include "Player.h"
 
+namespace
+{
+	// Phase::Result滞在時間。「ROUND CLEAR!」/「DEFEAT...」を一言表示してからPreparationへ進む。
+	const float kResultPhaseDurationSec = 1.5f;
+}
+
 bool Game::Start()
 {
 	m_unitDatabase.Init();
@@ -32,9 +38,7 @@ bool Game::Start()
 	g_renderingEngine->SetSceneMiddleGray(0.03f);
 	g_renderingEngine->SetBloomThreshold(10.0f);
 
-	// プレイヤー1(操作するプレイヤー、唯一のplayers要素)
-	m_gameState.players.push_back(Player("You"));
-	m_gameState.players[0].gold = 10;
+	InitializeNewRun();
 
 	Player& player = m_gameState.players[0];
 
@@ -56,6 +60,32 @@ bool Game::Start()
 	OutputDebugString(mergeLogBuf);
 
 	return true;
+}
+
+/// <summary>
+/// 1プレイ分の状態を初期状態へ戻す。Start()から1回、GameOver/Victoryからのリスタート時に
+/// 都度呼ばれる。呼び出し後のcurrentPhaseは呼び出し側が決める(Start()はGameStateの
+/// デフォルト値のままPhase::Title、リスタート時は呼び出し側で明示的にPhase::Titleへ戻す)。
+/// </summary>
+void Game::InitializeNewRun()
+{
+	// プレイヤー1(操作するプレイヤー、唯一のplayers要素)を作り直す。
+	m_gameState.players.clear();
+	m_gameState.players.push_back(Player("You"));
+	m_gameState.players[0].gold = 10;
+
+	m_gameState.roundNumber = 1;
+	m_gameState.lossCount = 0;
+
+	m_currentShop.clear();
+	m_combatSimDone = false;
+	m_pendingPhaseAfterCombat = Phase::Result;
+	m_lastCombatResult = CombatResult::Win;
+	m_resultPhaseTimer = 0.0f;
+
+	// UnitModelDisplayはplayers[0].boardの内容を毎フレーム比較して表示モデルを同期する
+	// (UnitModelDisplay::RebuildIfBoardChanged)ため、boardを空にしたこの状態を次のUpdate()が
+	// 読み取れば、古い盤面のモデルは自動的に消える。明示的なリセット呼び出しは不要。
 }
 
 void Game::Update()
@@ -311,6 +341,7 @@ void Game::Update()
 
 		// 相打ち(両者全滅・両者無傷)もリトライ扱い(敗北)にする。
 		CombatResult result = (enemyWiped && !playerWiped) ? CombatResult::Win : CombatResult::Loss;
+		m_lastCombatResult = result; // Phase::Result突入後、ResultUIRendererでの一言表示に使う。
 
 		if (result == CombatResult::Win)
 		{
@@ -392,21 +423,32 @@ void Game::Update()
 			m_gameState.players[0].ResetBoardPositions();
 			m_gameState.currentPhase = m_pendingPhaseAfterCombat;
 			m_combatSimDone = false;
+
+			if (m_gameState.currentPhase == Phase::Result)
+			{
+				// 「ROUND CLEAR!」/「DEFEAT...」を一定時間表示してからPreparationへ進む。
+				m_resultPhaseTimer = kResultPhaseDurationSec;
+			}
 		}
 	}
-	else if (m_gameState.currentPhase == Phase::GameOver)
+	else if (m_gameState.currentPhase == Phase::GameOver || m_gameState.currentPhase == Phase::Victory)
 	{
-		// ゲーム終了状態。ここでは何もしない(ラウンドを進めない)。
-	}
-	else if (m_gameState.currentPhase == Phase::Victory)
-	{
-		// 全ラウンドクリア状態。ここでは何もしない。
+		// ゲーム終了状態。Aボタンでリスタート(1プレイ分をリセットしてタイトルへ戻る)。
+		if (g_pad[0]->IsTrigger(enButtonA))
+		{
+			InitializeNewRun();
+			m_gameState.currentPhase = Phase::Title;
+		}
 	}
 	else // Result
 	{
 		// ラウンドの進行(勝利時のroundNumber++・敗北時のlossCount++)はCombatフェーズ側で
-		// 既に確定しているので、ここでは準備フェーズへ戻るだけでよい。
-		m_gameState.currentPhase = Phase::Preparation;
+		// 既に確定しているので、ここでは一言表示の残り時間を消化してから準備フェーズへ戻る。
+		m_resultPhaseTimer -= g_gameTime->GetFrameDeltaTime();
+		if (m_resultPhaseTimer <= 0.0f)
+		{
+			m_gameState.currentPhase = Phase::Preparation;
+		}
 	}
 }
 
@@ -574,5 +616,19 @@ void Game::Render(RenderContext& rc)
 	else if (m_gameState.currentPhase == Phase::Combat && m_combatSimDone)
 	{
 		m_boardUI.DrawCombat(rc, m_combatPlayback);
+	}
+	// ラウンド結果の一言表示。盤面(直前の配置に戻したユニット)を背景にしたまま重ねて表示する。
+	else if (m_gameState.currentPhase == Phase::Result)
+	{
+		m_resultUI.DrawRoundResult(rc, m_lastCombatResult);
+	}
+	// ゲームオーバー/ゲームクリア画面。こちらも盤面を背景に残したまま重ねて表示する。
+	else if (m_gameState.currentPhase == Phase::GameOver)
+	{
+		m_resultUI.DrawGameOver(rc, m_gameState.roundNumber, GameState::kTotalRounds, g_gameTime->GetFrameDeltaTime());
+	}
+	else if (m_gameState.currentPhase == Phase::Victory)
+	{
+		m_resultUI.DrawVictory(rc, g_gameTime->GetFrameDeltaTime());
 	}
 }

@@ -23,6 +23,7 @@
 #include "PlayerStatusUIRenderer.h"
 #include "RoundRecordUIRenderer.h"
 #include "TitleUIRenderer.h"
+#include "ResultUIRenderer.h"
 #include "CursorSelectionSystem.h"
 
 class Game : public IGameObject
@@ -36,6 +37,15 @@ public:
 
 private:
 	std::vector<EnemyStage> BuildEnemyStages();
+
+	/// <summary>
+	/// 1プレイ分(GameState::players・roundNumber・lossCount等)を初期状態へ戻す。
+	/// Start()の初回起動時と、GameOver/Victory画面からのリスタート時の両方から呼ぶ。
+	/// UnitDatabase/TraitDatabase等の一度きりの初期化やm_enemyStagesの構築、カメラ・
+	/// ライティング設定、Start()末尾のデバッグ用合成テストブロックはここに含めない
+	/// (前者は不変のデータ、後者は別タスクで整理予定のためリスタート時は呼ばない)。
+	/// </summary>
+	void InitializeNewRun();
 
 	GameState m_gameState;
 	UnitDatabase m_unitDatabase;
@@ -60,6 +70,7 @@ private:
 	PlayerStatusUIRenderer m_playerStatusUI; // 所持ゴールド・レベル/XPゲージをフェーズを問わず常時表示する。
 	RoundRecordUIRenderer m_roundRecordUI; // 現在ラウンド数/残りラウンド数・連敗カウントを常時2D表示する。
 	TitleUIRenderer m_titleUI; // タイトル画面(Phase::Title)のタイトル文字列・スタート操作ガイドを2D表示する。
+	ResultUIRenderer m_resultUI; // ラウンド結果一言・ゲームオーバー/ゲームクリア画面を2D表示する。
 	CursorSelectionSystem m_cursorSelection; // マウス・キーボード・ゲームパッドを横断するカーソル/選択状態。
 
 	// 戦闘フェーズの複数フレーム化用。突入時に1回だけシミュレーション+集計を行い(m_combatSimDone=true)、
@@ -67,4 +78,9 @@ private:
 	CombatPlayback m_combatPlayback;
 	bool m_combatSimDone = false;
 	Phase m_pendingPhaseAfterCombat = Phase::Result;
+
+	// Phase::Resultの表示・滞在時間管理用。Combatフェーズ解決時にその回の勝敗を控えておき、
+	// CombatPlayback再生完了でPhase::Resultへ入った瞬間にタイマーを開始する。
+	CombatResult m_lastCombatResult = CombatResult::Win;
+	float m_resultPhaseTimer = 0.0f;
 };
