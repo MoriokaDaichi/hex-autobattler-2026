@@ -525,6 +525,9 @@ void Game::Render(RenderContext& rc)
 
 	m_unitModelDisplay.Draw(rc);
 
+	// フェーズを問わず常時、画面右上にラウンド数・戦績(連敗カウント)を表示する。
+	m_roundRecordUI.Draw(rc, m_gameState);
+
 	// 準備フェーズのみ、画面下部にショップバーとベンチ一覧を表示する。
 	if (m_gameState.currentPhase == Phase::Preparation)
 	{

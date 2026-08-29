@@ -226,6 +226,7 @@
     <ClCompile Include="CombatEngine.cpp" />
     <ClCompile Include="CombatPlayback.cpp" />
     <ClCompile Include="BoardUIRenderer.cpp" />
+    <ClCompile Include="RoundRecordUIRenderer.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="CursorSelectionSystem.cpp" />
     <ClCompile Include="GameState.cpp" />
@@ -250,6 +251,7 @@
     <ClInclude Include="CombatEngine.h" />
     <ClInclude Include="CombatPlayback.h" />
     <ClInclude Include="BoardUIRenderer.h" />
+    <ClInclude Include="RoundRecordUIRenderer.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="CursorSelectionSystem.h" />
     <ClInclude Include="GameState.h" />

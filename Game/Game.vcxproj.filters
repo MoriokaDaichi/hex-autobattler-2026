@@ -60,6 +60,9 @@
     <ClCompile Include="BoardUIRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="RoundRecordUIRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -107,6 +110,9 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="BoardUIRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="RoundRecordUIRenderer.h">
       <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
