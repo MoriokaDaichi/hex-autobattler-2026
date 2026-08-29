@@ -525,6 +525,13 @@ void Game::Render(RenderContext& rc)
 
 	m_unitModelDisplay.Draw(rc);
 
+	// 所持ゴールド・レベル/XPゲージは、フェーズを問わず常時表示する
+	// (準備フェーズ限定のShopUIRendererのヘッダー行とは別に、右上へ常設する)。
+	{
+		const Player& player = m_gameState.players[0];
+		m_playerStatusUI.Draw(rc, player, m_levelSystem.XPForNextLevel(player.level));
+	}
+
 	// 準備フェーズのみ、画面下部にショップバーとベンチ一覧を表示する。
 	if (m_gameState.currentPhase == Phase::Preparation)
 	{

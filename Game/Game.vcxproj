@@ -235,6 +235,7 @@
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="ShopSystem.cpp" />
     <ClCompile Include="ShopUIRenderer.cpp" />
+    <ClCompile Include="PlayerStatusUIRenderer.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -258,6 +259,7 @@
     <ClInclude Include="Player.h" />
     <ClInclude Include="ShopSystem.h" />
     <ClInclude Include="ShopUIRenderer.h" />
+    <ClInclude Include="PlayerStatusUIRenderer.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="system\system.h" />
     <ClInclude Include="UnitDatabase.h" />

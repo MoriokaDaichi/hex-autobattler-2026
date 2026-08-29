@@ -20,6 +20,7 @@
 #include "UnitModelDisplay.h"
 #include "ShopUIRenderer.h"
 #include "BoardUIRenderer.h"
+#include "PlayerStatusUIRenderer.h"
 #include "CursorSelectionSystem.h"
 
 class Game : public IGameObject
@@ -54,6 +55,7 @@ private:
 	UnitModelDisplay m_unitModelDisplay; // players[0].boardのユニットを3D表示する。
 	ShopUIRenderer m_shopUI; // 準備フェーズのショップバー(5枠のカード・操作フィードバック)を2D表示する。
 	BoardUIRenderer m_boardUI; // 戦闘中のHPバー / 準備フェーズのベンチ一覧を2D表示する。
+	PlayerStatusUIRenderer m_playerStatusUI; // 所持ゴールド・レベル/XPゲージをフェーズを問わず常時表示する。
 	CursorSelectionSystem m_cursorSelection; // マウス・キーボード・ゲームパッドを横断するカーソル/選択状態。
 
 	// 戦闘フェーズの複数フレーム化用。突入時に1回だけシミュレーション+集計を行い(m_combatSimDone=true)、

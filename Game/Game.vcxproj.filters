@@ -54,6 +54,9 @@
     <ClCompile Include="ShopUIRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="PlayerStatusUIRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="CombatPlayback.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -101,6 +104,9 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="ShopUIRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerStatusUIRenderer.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="CombatPlayback.h">
