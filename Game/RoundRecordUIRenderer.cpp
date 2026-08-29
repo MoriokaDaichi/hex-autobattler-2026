@@ -19,8 +19,12 @@ namespace
 	// 対策として、BoardUIRenderer のベンチ一覧(kTopLeftPivot)と同様に実質左詰めとして扱い、
 	// 最長行("ROUND 10 / 10"、2桁ラウンド時)でも画面右端(UI空間 x=+960)内に収まるよう、
 	// 開始X座標に十分な余白を確保する。
+	//
+	// Y座標: PlayerStatusUIRenderer(GOLD/LV、y≒454〜500)が画面右上の上段を占有しているため、
+	// こちらはその下段に積む。両者が縦に重ならないよう kTopY を下げてある
+	// (以前は 0.48f=y≒518 で PlayerStatusUI と座標域が丸かぶりしていた)。
 	const float kX = (float)UI_SPACE_WIDTH * 0.27f;
-	const float kTopY = (float)UI_SPACE_HEIGHT * 0.48f;
+	const float kTopY = (float)UI_SPACE_HEIGHT * 0.36f;
 	const float kStepY = 38.0f;
 
 	const float kTitleScale = 0.56f;
