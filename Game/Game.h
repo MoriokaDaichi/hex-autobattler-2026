@@ -13,11 +13,13 @@
 #include "LevelSystem.h"
 #include "CombatEvent.h"
 #include "CombatLogPrinter.h"
+#include "CombatPlayback.h"
 #include "EnemyStage.h"
 #include "EnemyFactory.h"
 #include "HexGridRenderer.h"
 #include "UnitModelDisplay.h"
 #include "ShopUIRenderer.h"
+#include "BoardUIRenderer.h"
 #include "CursorSelectionSystem.h"
 
 class Game : public IGameObject
@@ -51,5 +53,12 @@ private:
 	HexGridRenderer m_hexGridRenderer;
 	UnitModelDisplay m_unitModelDisplay; // players[0].boardのユニットを3D表示する。
 	ShopUIRenderer m_shopUI; // 準備フェーズのショップバー(5枠のカード・操作フィードバック)を2D表示する。
+	BoardUIRenderer m_boardUI; // 戦闘中のHPバー / 準備フェーズのベンチ一覧を2D表示する。
 	CursorSelectionSystem m_cursorSelection; // マウス・キーボード・ゲームパッドを横断するカーソル/選択状態。
+
+	// 戦闘フェーズの複数フレーム化用。突入時に1回だけシミュレーション+集計を行い(m_combatSimDone=true)、
+	// 以降は m_combatPlayback で時系列再生する。再生完了後に m_pendingPhaseAfterCombat へ遷移する。
+	CombatPlayback m_combatPlayback;
+	bool m_combatSimDone = false;
+	Phase m_pendingPhaseAfterCombat = Phase::Result;
 };

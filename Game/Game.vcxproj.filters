@@ -54,6 +54,12 @@
     <ClCompile Include="ShopUIRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="CombatPlayback.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="BoardUIRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -95,6 +101,12 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="ShopUIRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="CombatPlayback.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="BoardUIRenderer.h">
       <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>

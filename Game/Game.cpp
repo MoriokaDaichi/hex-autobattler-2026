@@ -262,8 +262,11 @@ void Game::Update()
 			}
 		}
 	}
-	else if (m_gameState.currentPhase == Phase::Combat)
+	else if (m_gameState.currentPhase == Phase::Combat && !m_combatSimDone)
 	{
+		// --- 戦闘フェーズ突入フレーム: シミュレーション(瞬時解決)と集計をここで1回だけ行う ---
+		// フェーズ遷移はまだ行わず、遷移先を m_pendingPhaseAfterCombat に退避しておく。
+		// 実際の遷移は、下の再生ブロックで CombatPlayback の再生が終わってから行う。
 		Player& player = m_gameState.players[0];
 
 		// 現在のラウンドに対応する固定敵編成から、戦闘直前に敵の盤面を即座に組み立てる。
@@ -322,6 +325,9 @@ void Game::Update()
 
 		OutputDebugString(L"=== Combat End ===\n");
 
+		// 勝敗によるラウンド進行の確定と、再生完了後に遷移するフェーズの決定。
+		// 「画面上何も見えないまま一瞬で終わる」のを避けるため、遷移自体は再生後まで遅延させる。
+		Phase nextPhase = Phase::Result;
 		if (result == CombatResult::Win)
 		{
 			wchar_t buf[128];
@@ -334,11 +340,11 @@ void Game::Update()
 			if (m_gameState.roundNumber > GameState::kTotalRounds)
 			{
 				OutputDebugString(L"=== ALL ROUNDS CLEARED! YOU WIN! ===\n");
-				m_gameState.currentPhase = Phase::Victory;
+				nextPhase = Phase::Victory;
 			}
 			else
 			{
-				m_gameState.currentPhase = Phase::Result;
+				nextPhase = Phase::Result;
 			}
 		}
 		else
@@ -353,12 +359,31 @@ void Game::Update()
 			if (m_gameState.lossCount >= GameState::kMaxLossesPerEnemy)
 			{
 				OutputDebugString(L"=== GAME OVER ===\n");
-				m_gameState.currentPhase = Phase::GameOver;
+				nextPhase = Phase::GameOver;
 			}
 			else
 			{
-				m_gameState.currentPhase = Phase::Result;
+				nextPhase = Phase::Result;
 			}
+		}
+
+		m_pendingPhaseAfterCombat = nextPhase;
+
+		// 戦闘の時系列再生を開始する(enemy盤面は再生側が必要な値をコピーする)。
+		m_combatPlayback.Begin(player.board, player.name, enemy.board, enemy.name, m_combatEvents);
+		m_combatSimDone = true;
+	}
+	else if (m_gameState.currentPhase == Phase::Combat)
+	{
+		// --- 戦闘フェーズ 再生中フレーム: クロックを進め、HPバー等の表示を追従させる ---
+		m_combatPlayback.Update(g_gameTime->GetFrameDeltaTime());
+
+		if (m_combatPlayback.IsFinished())
+		{
+			// 再生完了。盤面ユニットを配置位置へ戻し、退避しておいた遷移先へ進む。
+			m_gameState.players[0].ResetBoardPositions();
+			m_gameState.currentPhase = m_pendingPhaseAfterCombat;
+			m_combatSimDone = false;
 		}
 	}
 	else if (m_gameState.currentPhase == Phase::GameOver)
@@ -500,7 +525,7 @@ void Game::Render(RenderContext& rc)
 
 	m_unitModelDisplay.Draw(rc);
 
-	// 準備フェーズのみ、画面下部にショップバーを表示する。
+	// 準備フェーズのみ、画面下部にショップバーとベンチ一覧を表示する。
 	if (m_gameState.currentPhase == Phase::Preparation)
 	{
 		const Player& player = m_gameState.players[0];
@@ -517,5 +542,12 @@ void Game::Render(RenderContext& rc)
 			LevelSystem::kBuyXPCost,
 			shopFocused ? shopCursorIndex : -1,
 			shopFocused);
+
+		m_boardUI.DrawPreparation(rc, player);
+	}
+	// 戦闘の再生中は、各ユニットの頭上にHPバーを表示する。
+	else if (m_gameState.currentPhase == Phase::Combat && m_combatSimDone)
+	{
+		m_boardUI.DrawCombat(rc, m_combatPlayback);
 	}
 }

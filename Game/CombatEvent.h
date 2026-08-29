@@ -36,6 +36,12 @@ struct CombatEvent
 	std::string targetOwner; // 対象の陣営名(Heal/Shield/Warningでは未使用)。
 	std::string targetName;  // 対象のユニット名(Heal/Shield/Warningでは未使用)。
 
+	// 行動主・対象の board 配列上の添字(-1 = 該当なし)。同名ユニットを一意に識別できないと
+	// 画面再生時にどのインスタンスのHPを更新すべきか特定できないため、CombatEngineが記録する。
+	// シミュレーションの解決ロジック・処理順・イベント内容には影響しない識別用メタ情報。
+	int actorIndex = -1;
+	int targetIndex = -1;
+
 	AttackType attackType = AttackType::Physical; // NormalAttack/SkillAttack/SplashDamageで使用。
 
 	int amount = 0;      // ダメージ量・回復量・シールド付与量・吸収量・移動距離の変化量など。

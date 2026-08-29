@@ -129,7 +129,7 @@ public:
 						int targetIndex = FindNearestEnemy(unit, enemy.board);
 						if (targetIndex >= 0)
 						{
-							PerformAction(unit, player.name, enemy.board[targetIndex], enemy.name, player.board, enemy.board, outEvents);
+							PerformAction(unit, player.name, (int)i, enemy.board[targetIndex], enemy.name, targetIndex, player.board, enemy.board, outEvents);
 						}
 						unit.nextActionTime = m_currentTime + GetEffectiveAttackInterval(unit);
 						++iteration;
@@ -144,7 +144,7 @@ public:
 						int targetIndex = FindNearestEnemy(unit, player.board);
 						if (targetIndex >= 0)
 						{
-							PerformAction(unit, enemy.name, player.board[targetIndex], player.name, enemy.board, player.board, outEvents);
+							PerformAction(unit, enemy.name, (int)i, player.board[targetIndex], player.name, targetIndex, enemy.board, player.board, outEvents);
 						}
 						unit.nextActionTime = m_currentTime + GetEffectiveAttackInterval(unit);
 						++iteration;
@@ -171,7 +171,7 @@ private:
 	/// ただしターゲットがその技の射程外にいる場合は、射程内に入るまで移動する(このターンは攻撃しない)。
 	/// attackerOwner/targetOwnerは陣営名(Player::name)で、イベントの表示に使う。
 	/// </summary>
-	void PerformAction(UnitInstance& attacker, const std::string& attackerOwner, UnitInstance& target, const std::string& targetOwner,
+	void PerformAction(UnitInstance& attacker, const std::string& attackerOwner, int actorIndex, UnitInstance& target, const std::string& targetOwner, int targetIndex,
 		const std::vector<UnitInstance>& allyBoard, std::vector<UnitInstance>& enemyBoard, std::vector<CombatEvent>& outEvents)
 	{
 		int gauge = attacker.normalAttackCount + attacker.receivedAttackCount;
@@ -181,19 +181,19 @@ private:
 		int distance = attacker.position.Distance(target.position);
 		if (distance > requiredRange)
 		{
-			MoveTowards(attacker, target, requiredRange, attackerOwner, targetOwner, distance, allyBoard, enemyBoard, outEvents);
+			MoveTowards(attacker, target, requiredRange, attackerOwner, actorIndex, targetOwner, targetIndex, distance, allyBoard, enemyBoard, outEvents);
 			return; // このターンは移動のみ。攻撃・ゲージ加算は行わない。
 		}
 
 		if (willUseSkill)
 		{
-			UseSkill(attacker, attackerOwner, target, targetOwner, enemyBoard, outEvents);
+			UseSkill(attacker, attackerOwner, actorIndex, target, targetOwner, targetIndex, enemyBoard, outEvents);
 			attacker.normalAttackCount = 0;
 			attacker.receivedAttackCount = 0;
 		}
 		else
 		{
-			NormalAttack(attacker, attackerOwner, target, targetOwner, outEvents);
+			NormalAttack(attacker, attackerOwner, actorIndex, target, targetOwner, targetIndex, outEvents);
 			attacker.normalAttackCount++;
 		}
 
@@ -210,7 +210,7 @@ private:
 	/// (それでも空きマスが1つもなければ、その場に留まる)。
 	/// </summary>
 	void MoveTowards(UnitInstance& attacker, const UnitInstance& target, int requiredRange,
-		const std::string& attackerOwner, const std::string& targetOwner, int startDistance,
+		const std::string& attackerOwner, int actorIndex, const std::string& targetOwner, int targetIndex, int startDistance,
 		const std::vector<UnitInstance>& allyBoard, const std::vector<UnitInstance>& enemyBoard,
 		std::vector<CombatEvent>& outEvents)
 	{
@@ -272,8 +272,10 @@ private:
 		e.time = m_currentTime;
 		e.actorOwner = attackerOwner;
 		e.actorName = attacker.def->name;
+		e.actorIndex = actorIndex;
 		e.targetOwner = targetOwner;
 		e.targetName = target.def->name;
+		e.targetIndex = targetIndex;
 		e.beforeValue = startDistance;
 		e.afterValue = attacker.position.Distance(target.position);
 		outEvents.push_back(e);
@@ -390,7 +392,7 @@ private:
 	/// <summary>
 	/// シールドが実際にダメージを吸収していれば、その旨をイベントとして記録する。
 	/// </summary>
-	void RecordShieldAbsorb(const UnitInstance& target, const std::string& targetOwner, int shieldAbsorbed,
+	void RecordShieldAbsorb(const UnitInstance& target, const std::string& targetOwner, int targetIndex, int shieldAbsorbed,
 		std::vector<CombatEvent>& outEvents)
 	{
 		if (shieldAbsorbed <= 0) return;
@@ -400,12 +402,13 @@ private:
 		e.time = m_currentTime;
 		e.targetOwner = targetOwner;
 		e.targetName = target.def->name;
+		e.targetIndex = targetIndex;
 		e.amount = shieldAbsorbed;
 		e.afterValue = target.shieldAmount;
 		outEvents.push_back(e);
 	}
 
-	void NormalAttack(const UnitInstance& attacker, const std::string& attackerOwner, UnitInstance& target, const std::string& targetOwner,
+	void NormalAttack(const UnitInstance& attacker, const std::string& attackerOwner, int actorIndex, UnitInstance& target, const std::string& targetOwner, int targetIndex,
 		std::vector<CombatEvent>& outEvents)
 	{
 		AttackType attackType = attacker.def->attackType;
@@ -420,16 +423,18 @@ private:
 		e.time = m_currentTime;
 		e.actorOwner = attackerOwner;
 		e.actorName = attacker.def->name;
+		e.actorIndex = actorIndex;
 		e.targetOwner = targetOwner;
 		e.targetName = target.def->name;
+		e.targetIndex = targetIndex;
 		e.attackType = attackType;
 		e.amount = damage;
 		e.beforeValue = beforeHP;
 		e.afterValue = target.currentHP;
 		outEvents.push_back(e);
 
-		RecordShieldAbsorb(target, targetOwner, shieldAbsorbed, outEvents);
-		CheckDeath(target, targetOwner, outEvents);
+		RecordShieldAbsorb(target, targetOwner, targetIndex, shieldAbsorbed, outEvents);
+		CheckDeath(target, targetOwner, targetIndex, outEvents);
 	}
 
 	/// <summary>
@@ -437,7 +442,7 @@ private:
 	/// 範囲ダメージ・自己回復(ドレイン)・シールド付与のいずれかの追加効果を適用する。
 	/// enemyBoardはtargetが所属する盤面全体で、AreaDamageの巻き込み判定に使う。
 	/// </summary>
-	void UseSkill(UnitInstance& attacker, const std::string& attackerOwner, UnitInstance& target, const std::string& targetOwner,
+	void UseSkill(UnitInstance& attacker, const std::string& attackerOwner, int actorIndex, UnitInstance& target, const std::string& targetOwner, int targetIndex,
 		std::vector<UnitInstance>& enemyBoard, std::vector<CombatEvent>& outEvents)
 	{
 		AttackType attackType = attacker.def->skillAttackType;
@@ -453,21 +458,23 @@ private:
 		hitEvent.time = m_currentTime;
 		hitEvent.actorOwner = attackerOwner;
 		hitEvent.actorName = attacker.def->name;
+		hitEvent.actorIndex = actorIndex;
 		hitEvent.targetOwner = targetOwner;
 		hitEvent.targetName = target.def->name;
+		hitEvent.targetIndex = targetIndex;
 		hitEvent.attackType = attackType;
 		hitEvent.amount = damage;
 		hitEvent.beforeValue = beforeHP;
 		hitEvent.afterValue = target.currentHP;
 		outEvents.push_back(hitEvent);
 
-		RecordShieldAbsorb(target, targetOwner, shieldAbsorbed, outEvents);
-		CheckDeath(target, targetOwner, outEvents);
+		RecordShieldAbsorb(target, targetOwner, targetIndex, shieldAbsorbed, outEvents);
+		CheckDeath(target, targetOwner, targetIndex, outEvents);
 
 		switch (attacker.def->skillType)
 		{
 		case SkillEffectType::AreaDamage:
-			ApplySplashDamage(attacker, attackerOwner, target, targetOwner, rawDamage, attackType, enemyBoard, outEvents);
+			ApplySplashDamage(attacker, attackerOwner, actorIndex, target, targetOwner, rawDamage, attackType, enemyBoard, outEvents);
 			break;
 
 		case SkillEffectType::DamageAndHeal:
@@ -484,6 +491,7 @@ private:
 			healEvent.time = m_currentTime;
 			healEvent.actorOwner = attackerOwner;
 			healEvent.actorName = attacker.def->name;
+			healEvent.actorIndex = actorIndex;
 			healEvent.amount = attacker.currentHP - beforeAttackerHP;
 			healEvent.beforeValue = beforeAttackerHP;
 			healEvent.afterValue = attacker.currentHP;
@@ -500,6 +508,7 @@ private:
 			shieldEvent.time = m_currentTime;
 			shieldEvent.actorOwner = attackerOwner;
 			shieldEvent.actorName = attacker.def->name;
+			shieldEvent.actorIndex = actorIndex;
 			shieldEvent.amount = attacker.def->skillShieldAmount;
 			shieldEvent.afterValue = attacker.shieldAmount;
 			outEvents.push_back(shieldEvent);
@@ -516,13 +525,14 @@ private:
 	/// AreaDamage用。primaryTargetの周囲(skillSplashRadius以内)にいる生存中の敵にも、
 	/// rawDamageのskillSplashPercent%を(個別に防御計算した上で)ダメージとして与える。
 	/// </summary>
-	void ApplySplashDamage(const UnitInstance& attacker, const std::string& attackerOwner,
+	void ApplySplashDamage(const UnitInstance& attacker, const std::string& attackerOwner, int actorIndex,
 		const UnitInstance& primaryTarget, const std::string& targetOwner,
 		int rawDamage, AttackType attackType, std::vector<UnitInstance>& enemyBoard,
 		std::vector<CombatEvent>& outEvents)
 	{
-		for (auto& other : enemyBoard)
+		for (size_t k = 0; k < enemyBoard.size(); ++k)
 		{
+			UnitInstance& other = enemyBoard[k];
 			if (&other == &primaryTarget) continue;
 			if (other.currentHP <= 0) continue;
 			if (primaryTarget.position.Distance(other.position) > attacker.def->skillSplashRadius) continue;
@@ -538,20 +548,22 @@ private:
 			e.time = m_currentTime;
 			e.actorOwner = attackerOwner;
 			e.actorName = attacker.def->name;
+			e.actorIndex = actorIndex;
 			e.targetOwner = targetOwner;
 			e.targetName = other.def->name;
+			e.targetIndex = (int)k;
 			e.attackType = attackType;
 			e.amount = splashDamage;
 			e.beforeValue = beforeHP;
 			e.afterValue = other.currentHP;
 			outEvents.push_back(e);
 
-			RecordShieldAbsorb(other, targetOwner, shieldAbsorbed, outEvents);
-			CheckDeath(other, targetOwner, outEvents);
+			RecordShieldAbsorb(other, targetOwner, (int)k, shieldAbsorbed, outEvents);
+			CheckDeath(other, targetOwner, (int)k, outEvents);
 		}
 	}
 
-	void CheckDeath(const UnitInstance& unit, const std::string& ownerName, std::vector<CombatEvent>& outEvents)
+	void CheckDeath(const UnitInstance& unit, const std::string& ownerName, int unitIndex, std::vector<CombatEvent>& outEvents)
 	{
 		if (unit.currentHP <= 0)
 		{
@@ -560,6 +572,7 @@ private:
 			e.time = m_currentTime;
 			e.actorOwner = ownerName;
 			e.actorName = unit.def->name;
+			e.actorIndex = unitIndex;
 			outEvents.push_back(e);
 		}
 	}
