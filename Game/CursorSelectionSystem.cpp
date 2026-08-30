@@ -37,6 +37,9 @@ void CursorSelectionSystem::UpdateFocusSwitch()
 		m_focus = InputFocus::Bench;
 		break;
 	case InputFocus::Bench:
+		m_focus = InputFocus::Items;
+		break;
+	case InputFocus::Items:
 		m_focus = InputFocus::Board;
 		break;
 	case InputFocus::Board:
@@ -49,7 +52,7 @@ void CursorSelectionSystem::UpdateFocusSwitch()
 
 void CursorSelectionSystem::UpdateListCursor()
 {
-	if (m_focus != InputFocus::Shop && m_focus != InputFocus::Bench) {
+	if (m_focus != InputFocus::Shop && m_focus != InputFocus::Bench && m_focus != InputFocus::Items) {
 		return;
 	}
 

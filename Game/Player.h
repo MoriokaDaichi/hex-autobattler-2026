@@ -28,6 +28,10 @@ struct Player
 	std::vector<UnitInstance> bench;   // 控え(まだ盤面に出していないユニット)
 	std::vector<UnitInstance> board;   // 盤面に配置済みのユニット
 
+	// まだどのユニットにも装備していない、入手済みアイテム(ラウンド勝利報酬で増える)。
+	// 準備フェーズでプレイヤーが選び、ItemSystem::GiveItemでbench/boardのユニットへ移す。
+	std::vector<const ItemDef*> unclaimedItems;
+
 	Player() = default;
 	Player(const std::string& playerName) : name(playerName) {}
 

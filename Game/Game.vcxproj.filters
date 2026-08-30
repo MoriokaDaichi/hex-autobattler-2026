@@ -66,6 +66,9 @@
     <ClCompile Include="RoundRecordUIRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="ItemInventoryUIRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="ResultUIRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -125,6 +128,9 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="RoundRecordUIRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemInventoryUIRenderer.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="ResultUIRenderer.h">

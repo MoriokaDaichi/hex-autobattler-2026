@@ -8,6 +8,7 @@ enum class InputFocus
 {
 	Shop,	// ショップのユニット一覧。
 	Bench,	// ベンチのユニット一覧。
+	Items,	// 未装備アイテム一覧。
 	Board,	// 盤面(ヘックスグリッド)。
 };
 

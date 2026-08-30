@@ -22,8 +22,7 @@ namespace
 	const float kPromptScale = 0.66f;
 	const float kPromptStartX = -135.0f; // "PRESS [A] TO START"がこのスケールで中央付近に来るよう調整した値。
 
-	// タイトル名は正式名称未確定のプレースホルダー(Notion側「ゲームタイトル（仮）」に対応)。
-	// 決定次第この1行を差し替えるだけで済むようにしている。
+	// タイトル名は"HEX ARENA"に正式決定済み(2026-08-30、ユーザー確認済み)。
 	const wchar_t* kTitleText = L"HEX ARENA";
 	const wchar_t* kPromptText = L"PRESS [A] TO START";
 

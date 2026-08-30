@@ -4,11 +4,34 @@
 #include "UnitDef.h"
 #include "UnitInstance.h"
 #include "Player.h"
+#include <random>
 
 namespace
 {
 	// Phase::Result滞在時間。「ROUND CLEAR!」/「DEFEAT...」を一言表示してからPreparationへ進む。
 	const float kResultPhaseDurationSec = 1.5f;
+
+	/// <summary>
+	/// アイテムDBの素材(ItemCategory::Component)から1つをランダムに返す。ラウンド勝利報酬用。
+	/// ShopSystemと同じくmt19937を使う(呼び出しごとに再シードしないよう関数内staticで保持)。
+	/// </summary>
+	const ItemDef* PickRandomComponent(const ItemDatabase& itemDatabase)
+	{
+		static std::mt19937 rng(std::random_device{}());
+
+		std::vector<const ItemDef*> pool;
+		for (const auto& def : itemDatabase.GetAllItemDefs())
+		{
+			if (def.category == ItemCategory::Component)
+			{
+				pool.push_back(&def);
+			}
+		}
+		if (pool.empty()) return nullptr;
+
+		std::uniform_int_distribution<size_t> dist(0, pool.size() - 1);
+		return pool[dist(rng)];
+	}
 }
 
 bool Game::Start()
@@ -78,6 +101,7 @@ void Game::InitializeNewRun()
 	m_gameState.lossCount = 0;
 
 	m_currentShop.clear();
+	m_heldUnclaimedIndex = -1;
 	m_combatSimDone = false;
 	m_pendingPhaseAfterCombat = Phase::Result;
 	m_lastCombatResult = CombatResult::Win;
@@ -120,6 +144,16 @@ void Game::Update()
 		{
 			m_cursorSelection.ClampListCursor((int)prepPlayer.bench.size());
 		}
+		else if (m_cursorSelection.GetFocus() == InputFocus::Items)
+		{
+			m_cursorSelection.ClampListCursor((int)prepPlayer.unclaimedItems.size());
+		}
+
+		// 手に持っているアイテムのindexが、装備等でリストが縮んで範囲外になっていたら解除する。
+		if (m_heldUnclaimedIndex >= (int)prepPlayer.unclaimedItems.size())
+		{
+			m_heldUnclaimedIndex = -1;
+		}
 
 		// まだショップが無ければ抽選する。
 		if (m_currentShop.empty())
@@ -139,31 +173,118 @@ void Game::Update()
 			}
 		}
 
-		// Aボタン(またはマウス左クリック/Enter/Space)で、ショップフォーカス中はカーソルが
-		// 指しているユニットを、それ以外のフォーカス中は従来通り0番目を買う。
+		// Aボタン(またはマウス左クリック/Enter/Space)。フォーカスと「アイテムを手に持っているか」で
+		// 意味が変わる:
+		//  - Itemsフォーカス中: カーソルのアイテムを手に持つ / もう一度押すと戻す。
+		//  - アイテムを手に持った状態でBench/Boardフォーカス中: 選択中のユニットへ装備を確定する。
+		//  - それ以外(ショップフォーカス中はカーソルのユニット、他は0番目): 従来通りユニットを買う。
 		if (g_pad[0]->IsTrigger(enButtonA))
 		{
 			Player& player = m_gameState.players[0];
-			int shopIndex = (m_cursorSelection.GetFocus() == InputFocus::Shop) ? m_cursorSelection.GetListCursorIndex() : 0;
-			const UnitDef* target = (shopIndex >= 0 && shopIndex < (int)m_currentShop.size()) ? m_currentShop[shopIndex] : nullptr;
-			bool success = target != nullptr && player.BuyUnit(target);
+			InputFocus focus = m_cursorSelection.GetFocus();
+			bool holdingItem = (m_heldUnclaimedIndex >= 0 && m_heldUnclaimedIndex < (int)player.unclaimedItems.size());
 
-			wchar_t buf[256];
-			swprintf_s(buf, L"Buy result: %hs, Shop index: %d, Gold left: %d, Bench count: %d\n",
-				success ? "true" : "false", shopIndex, player.gold, (int)player.bench.size());
-			OutputDebugString(buf);
-
-			if (success)
+			if (focus == InputFocus::Items)
 			{
-				wchar_t fb[128];
-				swprintf_s(fb, L"購入: %hs  (-%dG)", target->name.c_str(), target->cost);
-				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
+				if (player.unclaimedItems.empty())
+				{
+					m_shopUI.PushFeedback(L"未装備アイテムがありません", ShopUIRenderer::FeedbackLevel::Failure);
+				}
+				else
+				{
+					int idx = m_cursorSelection.GetListCursorIndex();
+					if (idx < 0 || idx >= (int)player.unclaimedItems.size()) idx = 0;
+
+					if (m_heldUnclaimedIndex == idx)
+					{
+						m_heldUnclaimedIndex = -1; // 同じアイテムをもう一度選んだら手放す。
+						m_shopUI.PushFeedback(L"アイテムを戻しました", ShopUIRenderer::FeedbackLevel::Info);
+					}
+					else
+					{
+						m_heldUnclaimedIndex = idx;
+						wchar_t fb[160];
+						swprintf_s(fb, L"アイテム選択: %hs  (ユニットを選び[A]で装備)", player.unclaimedItems[idx]->name.c_str());
+						m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
+					}
+				}
 			}
-			else if (target != nullptr)
+			else if (holdingItem && (focus == InputFocus::Bench || focus == InputFocus::Board))
 			{
-				wchar_t fb[128];
-				swprintf_s(fb, L"ゴールド不足: %hs は %dG 必要 (所持 %dG)", target->name.c_str(), target->cost, player.gold);
-				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Failure);
+				const ItemDef* heldItem = player.unclaimedItems[m_heldUnclaimedIndex];
+
+				UnitInstance* targetUnit = nullptr;
+				if (focus == InputFocus::Bench)
+				{
+					int benchIndex = m_cursorSelection.GetListCursorIndex();
+					if (benchIndex >= 0 && benchIndex < (int)player.bench.size())
+					{
+						targetUnit = &player.bench[benchIndex];
+					}
+				}
+				else // InputFocus::Board
+				{
+					HexCoord hex(0, 0);
+					if (m_cursorSelection.GetHexCursor(hex))
+					{
+						for (auto& unit : player.board)
+						{
+							if (unit.position == hex) { targetUnit = &unit; break; }
+						}
+					}
+				}
+
+				if (targetUnit == nullptr)
+				{
+					m_shopUI.PushFeedback(L"装備先のユニットがいません", ShopUIRenderer::FeedbackLevel::Failure);
+				}
+				else
+				{
+					bool equipped = m_itemSystem.GiveItem(*targetUnit, heldItem, m_itemDatabase, player.name);
+					if (equipped)
+					{
+						wchar_t fb[192];
+						swprintf_s(fb, L"装備: %hs -> %hs", heldItem->name.c_str(), targetUnit->def->name.c_str());
+						m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
+
+						player.unclaimedItems.erase(player.unclaimedItems.begin() + m_heldUnclaimedIndex);
+						m_heldUnclaimedIndex = -1;
+
+						wchar_t log[224];
+						swprintf_s(log, L"[Equip] %hs -> %hs (unclaimed left=%d, unit items=%d)\n",
+							heldItem->name.c_str(), targetUnit->def->name.c_str(),
+							(int)player.unclaimedItems.size(), (int)targetUnit->items.size());
+						OutputDebugString(log);
+					}
+					else
+					{
+						m_shopUI.PushFeedback(L"装備できません (アイテム枠が満杯)", ShopUIRenderer::FeedbackLevel::Failure);
+					}
+				}
+			}
+			else
+			{
+				int shopIndex = (focus == InputFocus::Shop) ? m_cursorSelection.GetListCursorIndex() : 0;
+				const UnitDef* target = (shopIndex >= 0 && shopIndex < (int)m_currentShop.size()) ? m_currentShop[shopIndex] : nullptr;
+				bool success = target != nullptr && player.BuyUnit(target);
+
+				wchar_t buf[256];
+				swprintf_s(buf, L"Buy result: %hs, Shop index: %d, Gold left: %d, Bench count: %d\n",
+					success ? "true" : "false", shopIndex, player.gold, (int)player.bench.size());
+				OutputDebugString(buf);
+
+				if (success)
+				{
+					wchar_t fb[128];
+					swprintf_s(fb, L"購入: %hs  (-%dG)", target->name.c_str(), target->cost);
+					m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
+				}
+				else if (target != nullptr)
+				{
+					wchar_t fb[128];
+					swprintf_s(fb, L"ゴールド不足: %hs は %dG 必要 (所持 %dG)", target->name.c_str(), target->cost, player.gold);
+					m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Failure);
+				}
 			}
 		}
 
@@ -171,6 +292,7 @@ void Game::Update()
 		if (g_pad[0]->IsTrigger(enButtonB))
 		{
 			m_currentShop.clear();
+			m_heldUnclaimedIndex = -1; // 手に持ったままのアイテムは戦闘に持ち越さず、一覧へ戻す。
 			m_gameState.currentPhase = Phase::Combat;
 		}
 
@@ -372,6 +494,22 @@ void Game::Update()
 			wchar_t buf[128];
 			swprintf_s(buf, L"=== Round %d Clear! ===\n", m_gameState.roundNumber);
 			OutputDebugString(buf);
+
+			// ラウンド勝利報酬: 未装備の素材アイテムを1つ入手する(準備フェーズでユニットに装備できる)。
+			const ItemDef* reward = PickRandomComponent(m_itemDatabase);
+			if (reward != nullptr)
+			{
+				player.unclaimedItems.push_back(reward);
+
+				wchar_t rewardLog[192];
+				swprintf_s(rewardLog, L"[Reward] Obtained item: %hs (unclaimed total=%d)\n",
+					reward->name.c_str(), (int)player.unclaimedItems.size());
+				OutputDebugString(rewardLog);
+
+				wchar_t fb[128];
+				swprintf_s(fb, L"アイテム入手: %hs", reward->name.c_str());
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
+			}
 
 			m_gameState.lossCount = 0;
 			m_gameState.roundNumber++;
@@ -611,6 +749,11 @@ void Game::Render(RenderContext& rc)
 			shopFocused);
 
 		m_boardUI.DrawPreparation(rc, player);
+
+		// 未装備アイテム一覧(画面右側)。Itemsフォーカス中のみカーソル位置を渡して強調する。
+		bool itemsFocused = m_cursorSelection.GetFocus() == InputFocus::Items;
+		m_itemInventoryUI.Draw(rc, player, itemsFocused,
+			itemsFocused ? m_cursorSelection.GetListCursorIndex() : -1, m_heldUnclaimedIndex);
 	}
 	// 戦闘の再生中は、各ユニットの頭上にHPバーを表示する。
 	else if (m_gameState.currentPhase == Phase::Combat && m_combatSimDone)
