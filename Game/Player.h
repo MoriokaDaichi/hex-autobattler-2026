@@ -109,6 +109,84 @@ struct Player
 	}
 
 	/// <summary>
+	/// 盤面の指定マスに居るユニットへのポインタを返す(居なければ nullptr)。
+	/// Game::Update() が「X で盤面ユニットを拾うのか、従来のベンチ配置なのか」を
+	/// 判定するために使う。
+	/// </summary>
+	const UnitInstance* FindBoardUnitAt(const HexCoord& pos) const
+	{
+		for (const auto& unit : board)
+		{
+			if (unit.position == pos)
+			{
+				return &unit;
+			}
+		}
+		return nullptr;
+	}
+
+	/// <summary>
+	/// 盤面上のユニットを from マスから to マスへ移動する。
+	/// to は自陣(q0-2)かつ空きマスであること。成功で true。
+	/// 盤面ユニット数は増減しないため GetMaxBoardSize チェックは行わない。
+	/// </summary>
+	bool MoveUnitOnBoard(const HexCoord& from, const HexCoord& to)
+	{
+		if (from == to)
+		{
+			return false; // 同じマスへの移動は無効(呼び出し側でキャンセル扱い)。
+		}
+
+		if (to.q < kAllyZoneMinQ || to.q > kAllyZoneMaxQ)
+		{
+			return false; // 自陣(q0-2)以外へは移動できない。
+		}
+
+		int fromIndex = -1;
+		for (int i = 0; i < (int)board.size(); ++i)
+		{
+			if (board[i].position == to)
+			{
+				return false; // 移動先が他ユニットで埋まっている。
+			}
+			if (board[i].position == from)
+			{
+				fromIndex = i;
+			}
+		}
+		if (fromIndex < 0)
+		{
+			return false; // from に自分のユニットが居ない。
+		}
+
+		board[fromIndex].position = to;
+		board[fromIndex].homePosition = to; // 毎ラウンド戦闘開始前に戻る先も更新する。
+		return true;
+	}
+
+	/// <summary>
+	/// 盤面上の from マスのユニットをベンチへ戻す。成功で true。
+	/// ベンチ枚数上限は設けない(BuyUnit と整合)。
+	/// </summary>
+	bool ReturnUnitToBench(const HexCoord& from)
+	{
+		for (int i = 0; i < (int)board.size(); ++i)
+		{
+			if (board[i].position == from)
+			{
+				bench.push_back(board[i]);
+				board.erase(board.begin() + i);
+				// 盤面⇔ベンチをまたぐ同一ユニット3体は購入/配置時点で必ず合成済みのため、
+				// ここで新たな3体そろいは通常発生しないが、既存 PlaceUnitOnBoard と同じ
+				// 防御的呼び出しとして残す。
+				while (TryMergeUnits()) {}
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/// <summary>
 	/// ユニット1体分の売却額を返す。★2は素材3体分、★3は9体分の価値として扱う
 	/// (3体合成でスターアップする仕組みと整合させている)。
 	/// </summary>
