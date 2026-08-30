@@ -228,6 +228,7 @@
     <ClCompile Include="BoardUIRenderer.cpp" />
     <ClCompile Include="RoundRecordUIRenderer.cpp" />
     <ClCompile Include="ItemInventoryUIRenderer.cpp" />
+    <ClCompile Include="TraitPanelUIRenderer.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="CursorSelectionSystem.cpp" />
     <ClCompile Include="GameState.cpp" />
@@ -257,6 +258,7 @@
     <ClInclude Include="BoardUIRenderer.h" />
     <ClInclude Include="RoundRecordUIRenderer.h" />
     <ClInclude Include="ItemInventoryUIRenderer.h" />
+    <ClInclude Include="TraitPanelUIRenderer.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="CursorSelectionSystem.h" />
     <ClInclude Include="GameState.h" />

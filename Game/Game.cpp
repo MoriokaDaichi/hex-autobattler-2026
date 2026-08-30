@@ -754,6 +754,9 @@ void Game::Render(RenderContext& rc)
 		bool itemsFocused = m_cursorSelection.GetFocus() == InputFocus::Items;
 		m_itemInventoryUI.Draw(rc, player, itemsFocused,
 			itemsFocused ? m_cursorSelection.GetListCursorIndex() : -1, m_heldUnclaimedIndex);
+
+		// 全トレイトの発動状況(画面左側、BENCH一覧の下)。
+		m_traitPanelUI.Draw(rc, player.board, m_traitDatabase, m_traitSystem);
 	}
 	// 戦闘の再生中は、各ユニットの頭上にHPバーを表示する。
 	else if (m_gameState.currentPhase == Phase::Combat && m_combatSimDone)

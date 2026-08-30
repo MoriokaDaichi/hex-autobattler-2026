@@ -23,6 +23,7 @@
 #include "PlayerStatusUIRenderer.h"
 #include "RoundRecordUIRenderer.h"
 #include "ItemInventoryUIRenderer.h"
+#include "TraitPanelUIRenderer.h"
 #include "TitleUIRenderer.h"
 #include "ResultUIRenderer.h"
 #include "CursorSelectionSystem.h"
@@ -71,6 +72,7 @@ private:
 	PlayerStatusUIRenderer m_playerStatusUI; // 所持ゴールド・レベル/XPゲージをフェーズを問わず常時表示する。
 	RoundRecordUIRenderer m_roundRecordUI; // 現在ラウンド数/残りラウンド数・連敗カウントを常時2D表示する。
 	ItemInventoryUIRenderer m_itemInventoryUI; // 準備フェーズ、未装備アイテム一覧を画面右側に2D表示する。
+	TraitPanelUIRenderer m_traitPanelUI; // 準備フェーズ、全トレイトの発動状況を画面左側に2D表示する。
 	TitleUIRenderer m_titleUI; // タイトル画面(Phase::Title)のタイトル文字列・スタート操作ガイドを2D表示する。
 	ResultUIRenderer m_resultUI; // ラウンド結果一言・ゲームオーバー/ゲームクリア画面を2D表示する。
 	CursorSelectionSystem m_cursorSelection; // マウス・キーボード・ゲームパッドを横断するカーソル/選択状態。

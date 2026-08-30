@@ -21,14 +21,7 @@ public:
 		// この関数は戦闘直前(=毎ラウンド開始時)に1回だけ呼ばれ、その中でHPも全回復させる。
 		// つまりboard上のユニットは前回の戦闘結果に関わらず全員が今回の参加メンバーなので、
 		// currentHPで生死を判定せず、boardにいる全員をトレイト集計の対象にする。
-		std::map<TraitType, int> traitCounts;
-		for (const auto& unit : board)
-		{
-			for (TraitType trait : unit.def->traits)
-			{
-				traitCounts[trait]++;
-			}
-		}
+		std::map<TraitType, int> traitCounts = CountBoardTraits(board);
 
 		for (auto& unit : board)
 		{
@@ -61,12 +54,29 @@ public:
 		LogActiveTraits(traitCounts, traitDatabase, ownerName);
 	}
 
-private:
+	/// <summary>
+	/// boardのユニットが持つトレイトを集計する(表示用途)。ApplyTraitBonusesと違い、
+	/// ボーナス適用やHP全回復といった副作用が無いため、準備フェーズ中に毎フレーム呼んでもよい
+	/// (TraitPanelUIRendererが使用)。
+	/// </summary>
+	std::map<TraitType, int> CountBoardTraits(const std::vector<UnitInstance>& board) const
+	{
+		std::map<TraitType, int> traitCounts;
+		for (const auto& unit : board)
+		{
+			for (TraitType trait : unit.def->traits)
+			{
+				traitCounts[trait]++;
+			}
+		}
+		return traitCounts;
+	}
+
 	/// <summary>
 	/// countが満たす最高段階のTraitTierを返す(どの段階も満たさなければnullptr)。
 	/// tiersはrequiredCount昇順の登録を前提とする。
 	/// </summary>
-	const TraitTier* FindActiveTier(const TraitDef& traitDef, int count)
+	const TraitTier* FindActiveTier(const TraitDef& traitDef, int count) const
 	{
 		const TraitTier* result = nullptr;
 		for (const auto& tier : traitDef.tiers)
@@ -79,6 +89,24 @@ private:
 		return result;
 	}
 
+	/// <summary>
+	/// countがまだ満たしていない最初(=最も要求人数が少ない)のTraitTierを返す
+	/// (無ければ最終段階まで到達済みという意味でnullptr)。TraitPanelUIRendererの
+	/// 「次のブレイクポイント閾値」表示に使う。
+	/// </summary>
+	const TraitTier* FindNextTier(const TraitDef& traitDef, int count) const
+	{
+		for (const auto& tier : traitDef.tiers)
+		{
+			if (count < tier.requiredCount)
+			{
+				return &tier;
+			}
+		}
+		return nullptr;
+	}
+
+private:
 	void ApplyEffect(UnitInstance& unit, const StatEffect& effect)
 	{
 		switch (effect.stat)
