@@ -12,10 +12,14 @@ class TitleUIRenderer : public IRenderer, public Noncopyable
 {
 public:
 	/// <summary>
-	/// Phase::Title中、毎フレームGame::Render()から呼ぶ。「PRESS [A] TO START」の点滅表現のため、
+	/// Phase::Title中、毎フレームGame::Render()から呼ぶ。プロンプト文字列の点滅表現のため、
 	/// 内部で経過時間を積算する。
 	/// </summary>
-	void Draw(RenderContext& rc, float deltaTime);
+	/// <param name="hasSaveData">
+	/// セーブデータが存在するか。true なら「[A] CONTINUE / [X] NEW GAME」、false なら
+	/// 「PRESS [A] TO START」を表示する。
+	/// </param>
+	void Draw(RenderContext& rc, float deltaTime, bool hasSaveData);
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;
@@ -23,4 +27,5 @@ public:
 private:
 	Font m_font;
 	float m_elapsedTime = 0.0f;
+	bool m_hasSaveData = false;
 };
