@@ -87,6 +87,7 @@ void Game::InitializeNewRun()
 
 	m_currentShop.clear();
 	m_heldUnclaimedIndex = -1;
+	m_heldBoardHexValid = false;
 	m_combatSimDone = false;
 	m_pendingPhaseAfterCombat = Phase::Result;
 	m_lastCombatResult = CombatResult::Win;
@@ -162,6 +163,12 @@ void Game::Update()
 		if (m_heldUnclaimedIndex >= (int)prepPlayer.unclaimedItems.size())
 		{
 			m_heldUnclaimedIndex = -1;
+		}
+
+		// 盤面から離れたら「移動元選択中」は解除する(手持ちアイテムと同じ考え方)。
+		if (m_cursorSelection.GetFocus() != InputFocus::Board)
+		{
+			m_heldBoardHexValid = false;
 		}
 
 		// まだショップが無ければ抽選する。
@@ -313,33 +320,104 @@ void Game::Update()
 		{
 			m_currentShop.clear();
 			m_heldUnclaimedIndex = -1; // 手に持ったままのアイテムは戦闘に持ち越さず、一覧へ戻す。
+			m_heldBoardHexValid = false; // 盤面内移動の選択も戦闘に持ち越さない。
 			m_gameState.currentPhase = Phase::Combat;
 		}
 
-		// Xボタンで、ベンチフォーカス中はカーソルが指しているユニットを、それ以外は0番目を、
-		// 盤面フォーカス中はマウスホバー/矢印キーで選んだマスへ、それ以外は(0,0)へ配置する。
+		// Xボタン。Boardフォーカスでの盤面内再配置と、従来のベンチ→盤面配置を兼ねる:
+		//  - Boardフォーカス・移動元未選択・カーソルが盤面ユニット上 → そのユニットを「移動元」に選択。
+		//  - Boardフォーカス・移動元選択中・カーソルが空きの自陣マス → そのマスへ移動。
+		//  - Boardフォーカス・移動元選択中・カーソルが移動元と同じマス → 選択解除(キャンセル)。
+		//  - それ以外(ベンチフォーカス、または盤面の空きマス) → 従来通りベンチのユニットを配置。
 		if (g_pad[0]->IsTrigger(enButtonX))
 		{
 			Player& player = m_gameState.players[0];
-			int benchIndex = (m_cursorSelection.GetFocus() == InputFocus::Bench) ? m_cursorSelection.GetListCursorIndex() : 0;
-			HexCoord targetHex(0, 0);
-			m_cursorSelection.GetHexCursor(targetHex); // 未選択ならデフォルトの(0,0)のまま。
-			bool success = player.PlaceUnitOnBoard(benchIndex, targetHex);
+			InputFocus focus = m_cursorSelection.GetFocus();
 
-			wchar_t buf[256];
-			swprintf_s(buf, L"Place result: %hs, Bench index: %d, Hex: (%d,%d), Bench count: %d, Board count: %d\n",
-				success ? "true" : "false", benchIndex, targetHex.q, targetHex.r, (int)player.bench.size(), (int)player.board.size());
-			OutputDebugString(buf);
+			HexCoord cursorHex;
+			bool haveCursor = m_cursorSelection.GetHexCursor(cursorHex);
 
-			if (success)
+			bool handledByReposition = false;
+			if (focus == InputFocus::Board)
 			{
-				wchar_t fb[128];
-				swprintf_s(fb, L"配置: マス(%d,%d)  盤面 %d/%d", targetHex.q, targetHex.r, (int)player.board.size(), player.GetMaxBoardSize());
-				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
+				if (m_heldBoardHexValid)
+				{
+					// 移動元選択済み → 今回のXは「移動先の確定」。
+					handledByReposition = true;
+					if (!haveCursor)
+					{
+						m_shopUI.PushFeedback(L"移動先マスを選んでください", ShopUIRenderer::FeedbackLevel::Failure);
+					}
+					else if (cursorHex == m_heldBoardHex)
+					{
+						m_heldBoardHexValid = false;
+						m_shopUI.PushFeedback(L"移動をキャンセルしました", ShopUIRenderer::FeedbackLevel::Info);
+					}
+					else
+					{
+						bool ok = player.MoveUnitOnBoard(m_heldBoardHex, cursorHex);
+
+						wchar_t buf[192];
+						swprintf_s(buf, L"Board move result: %hs, from (%d,%d) to (%d,%d)\n",
+							ok ? "true" : "false", m_heldBoardHex.q, m_heldBoardHex.r, cursorHex.q, cursorHex.r);
+						OutputDebugString(buf);
+
+						if (ok)
+						{
+							wchar_t fb[128];
+							// 矢印はASCIIの "->"。全角矢印(U+2192)はこのFontEngineのSpriteFontに
+							// グリフが無く、default glyph未設定のため描画時に例外→abortする。
+							swprintf_s(fb, L"移動: (%d,%d) -> (%d,%d)", m_heldBoardHex.q, m_heldBoardHex.r, cursorHex.q, cursorHex.r);
+							m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
+							m_heldBoardHexValid = false;
+						}
+						else
+						{
+							m_shopUI.PushFeedback(L"移動できません (自陣 q0-2 のみ / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
+						}
+					}
+				}
+				else if (haveCursor)
+				{
+					const UnitInstance* onCell = player.FindBoardUnitAt(cursorHex);
+					if (onCell != nullptr)
+					{
+						// カーソルが盤面ユニットを指している → 「移動元」として選択(拾う)。
+						handledByReposition = true;
+						m_heldBoardHex = cursorHex;
+						m_heldBoardHexValid = true;
+
+						wchar_t fb[160];
+						swprintf_s(fb, L"移動元を選択: %hs  (移動先マスで[X] / [LB1]でベンチへ)", onCell->def->name.c_str());
+						m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
+					}
+					// カーソルが空きマス → handledByReposition = false のまま、下の従来配置ロジックへ。
+				}
 			}
-			else
+
+			if (!handledByReposition)
 			{
-				m_shopUI.PushFeedback(L"配置できません (自陣 q0-2 のみ / 盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
+				// --- 従来のベンチ → 盤面配置(挙動は変更しない) ---
+				int benchIndex = (focus == InputFocus::Bench) ? m_cursorSelection.GetListCursorIndex() : 0;
+				HexCoord targetHex(0, 0);
+				m_cursorSelection.GetHexCursor(targetHex); // 未選択ならデフォルトの(0,0)のまま。
+				bool success = player.PlaceUnitOnBoard(benchIndex, targetHex);
+
+				wchar_t buf[256];
+				swprintf_s(buf, L"Place result: %hs, Bench index: %d, Hex: (%d,%d), Bench count: %d, Board count: %d\n",
+					success ? "true" : "false", benchIndex, targetHex.q, targetHex.r, (int)player.bench.size(), (int)player.board.size());
+				OutputDebugString(buf);
+
+				if (success)
+				{
+					wchar_t fb[128];
+					swprintf_s(fb, L"配置: マス(%d,%d)  盤面 %d/%d", targetHex.q, targetHex.r, (int)player.board.size(), player.GetMaxBoardSize());
+					m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
+				}
+				else
+				{
+					m_shopUI.PushFeedback(L"配置できません (自陣 q0-2 のみ / 盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
+				}
 			}
 		}
 
@@ -379,27 +457,66 @@ void Game::Update()
 			}
 		}
 
-		// LB1ボタンで、ベンチフォーカス中はカーソルが指しているユニットを、それ以外は0番目を売却する。
+		// LB1ボタン。Boardフォーカス中は対象の盤面ユニット(移動元選択中ならそれ、無ければヘックス
+		// カーソル)をベンチへ戻す。それ以外はベンチフォーカス中はカーソル、他は0番目を売却する。
 		if (g_pad[0]->IsTrigger(enButtonLB1))
 		{
 			Player& player = m_gameState.players[0];
-			int benchIndex = (m_cursorSelection.GetFocus() == InputFocus::Bench) ? m_cursorSelection.GetListCursorIndex() : 0;
-			bool success = player.SellUnitFromBench(benchIndex);
+			InputFocus focus = m_cursorSelection.GetFocus();
 
-			wchar_t buf[256];
-			swprintf_s(buf, L"Sell result: %hs, Bench index: %d, Gold: %d, Bench count: %d\n",
-				success ? "true" : "false", benchIndex, player.gold, (int)player.bench.size());
-			OutputDebugString(buf);
-
-			if (success)
+			bool handledByReturn = false;
+			if (focus == InputFocus::Board)
 			{
-				wchar_t fb[128];
-				swprintf_s(fb, L"売却  所持 %dG", player.gold);
-				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
+				HexCoord targetHex;
+				bool haveTarget = false;
+				if (m_heldBoardHexValid)
+				{
+					targetHex = m_heldBoardHex;
+					haveTarget = true;
+				}
+				else if (m_cursorSelection.GetHexCursor(targetHex))
+				{
+					haveTarget = true;
+				}
+
+				if (haveTarget && player.FindBoardUnitAt(targetHex) != nullptr)
+				{
+					handledByReturn = true;
+					bool ok = player.ReturnUnitToBench(targetHex);
+
+					wchar_t buf[192];
+					swprintf_s(buf, L"Return to bench result: %hs, hex (%d,%d), Bench count: %d, Board count: %d\n",
+						ok ? "true" : "false", targetHex.q, targetHex.r, (int)player.bench.size(), (int)player.board.size());
+					OutputDebugString(buf);
+
+					m_heldBoardHexValid = false;
+					m_shopUI.PushFeedback(
+						ok ? L"ベンチへ戻しました" : L"ベンチへ戻せません",
+						ok ? ShopUIRenderer::FeedbackLevel::Info : ShopUIRenderer::FeedbackLevel::Failure);
+				}
 			}
-			else
+
+			if (!handledByReturn)
 			{
-				m_shopUI.PushFeedback(L"売却できません (ベンチが空)", ShopUIRenderer::FeedbackLevel::Failure);
+				// --- 従来のベンチユニット売却(挙動は変更しない) ---
+				int benchIndex = (focus == InputFocus::Bench) ? m_cursorSelection.GetListCursorIndex() : 0;
+				bool success = player.SellUnitFromBench(benchIndex);
+
+				wchar_t buf[256];
+				swprintf_s(buf, L"Sell result: %hs, Bench index: %d, Gold: %d, Bench count: %d\n",
+					success ? "true" : "false", benchIndex, player.gold, (int)player.bench.size());
+				OutputDebugString(buf);
+
+				if (success)
+				{
+					wchar_t fb[128];
+					swprintf_s(fb, L"売却  所持 %dG", player.gold);
+					m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
+				}
+				else
+				{
+					m_shopUI.PushFeedback(L"売却できません (ベンチが空)", ShopUIRenderer::FeedbackLevel::Failure);
+				}
 			}
 		}
 

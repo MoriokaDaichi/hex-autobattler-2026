@@ -83,6 +83,12 @@ private:
 	// Itemsフォーカス中にAで持ち、Bench/Boardのユニットを選んでAで装備確定するまでの一時状態。
 	int m_heldUnclaimedIndex = -1;
 
+	// 準備フェーズ、盤面内再配置で「移動元」として選択中の盤面マス。
+	// Boardフォーカス中にXで盤面ユニットを指すとセットされ、移動先マスでX(移動確定)/
+	// LB1(ベンチへ戻す)/同じマスでX(キャンセル)/フォーカスがBoardから外れる・戦闘突入で解除。
+	HexCoord m_heldBoardHex;
+	bool m_heldBoardHexValid = false;
+
 	// 戦闘フェーズの複数フレーム化用。突入時に1回だけシミュレーション+集計を行い(m_combatSimDone=true)、
 	// 以降は m_combatPlayback で時系列再生する。再生完了後に m_pendingPhaseAfterCombat へ遷移する。
 	CombatPlayback m_combatPlayback;
