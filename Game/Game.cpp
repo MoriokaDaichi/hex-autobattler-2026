@@ -304,7 +304,7 @@ void Game::Update()
 			}
 			else
 			{
-				m_shopUI.PushFeedback(L"配置できません (盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
+				m_shopUI.PushFeedback(L"配置できません (自陣 q0-2 のみ / 盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
 			}
 		}
 

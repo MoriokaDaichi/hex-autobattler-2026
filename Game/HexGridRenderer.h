@@ -42,6 +42,12 @@ public:
 	/// </summary>
 	static bool IsValidHex(const HexCoord& hex);
 
+	// 自陣(プレイヤーがユニットを配置できるゾーン)のaxial q範囲。
+	// 盤面全体の区分けは下のkMinQ〜kMaxQ / BuildTileFills()を参照(0-2:自陣 / 3-5:中立 / 6-8:敵陣)。
+	// IsValidHex等と同様、配置可否判定など他所からも参照するためpublicに置く。
+	static constexpr int kAllyZoneMinQ = 0;
+	static constexpr int kAllyZoneMaxQ = 2;
+
 private:
 	struct Vertex
 	{

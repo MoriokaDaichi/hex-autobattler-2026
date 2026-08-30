@@ -62,11 +62,22 @@ struct Player
 		return true;
 	}
 
+	// プレイヤーがユニットを配置できる自陣のaxial q範囲。
+	// 盤面の区分けの正はHexGridRenderer(kAllyZoneMinQ/kAllyZoneMaxQ、0-2:自陣 / 3-5:中立 / 6-8:敵陣)。
+	// HexGridRenderer.h → GameState.h → Player.h の循環includeを避けるため、同値をここへ再掲している。
+	static constexpr int kAllyZoneMinQ = 0;
+	static constexpr int kAllyZoneMaxQ = 2;
+
 	bool PlaceUnitOnBoard(int benchIndex, const HexCoord& targetPos)
 	{
 		if (benchIndex < 0 || benchIndex >= (int)bench.size())
 		{
 			return false; // ベンチの範囲外
+		}
+
+		if (targetPos.q < kAllyZoneMinQ || targetPos.q > kAllyZoneMaxQ)
+		{
+			return false; // 自陣(q0-2)以外には配置できない。
 		}
 
 		if ((int)board.size() >= GetMaxBoardSize())

@@ -228,7 +228,7 @@ void HexGridRenderer::BuildTileFills(const GameState& gameState)
 			Vector3 center = CalcTileCenter(q, r);
 
 			Vector4 zoneColor = kNeutralZoneColor;
-			if (q <= 2) {
+			if (q >= kAllyZoneMinQ && q <= kAllyZoneMaxQ) {
 				zoneColor = kAllyZoneColor;
 			}
 			else if (q >= 6) {
