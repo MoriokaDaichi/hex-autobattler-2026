@@ -63,24 +63,9 @@ bool Game::Start()
 
 	InitializeNewRun();
 
-	Player& player = m_gameState.players[0];
-
 	// 10ラウンド分の固定敵編成をあらかじめ組み立てておく。各ラウンドの戦闘直前に
 	// EnemyFactoryがこのデータから即座に敵の盤面を生成する(BotAIのような段階的購入は行わない)。
 	m_enemyStages = BuildEnemyStages();
-
-	// --- デバッグ用: 合成ロジックの動作確認。ベンチにSlimeを3体追加すると、
-	// Player::TryMergeUnitsにより自動的に★2のSlime1体(ベンチ)にまとまるはず。
-	// (盤面は空のままなので、アイテム付与やスターアップの見た目確認は通常のプレイ操作で行う)。
-	const UnitDef* slimeDef = m_unitDatabase.FindUnitDefByName("Slime");
-	player.bench.push_back(UnitInstance(slimeDef));
-	player.bench.push_back(UnitInstance(slimeDef));
-	player.bench.push_back(UnitInstance(slimeDef));
-	while (player.TryMergeUnits()) {}
-
-	wchar_t mergeLogBuf[256];
-	swprintf_s(mergeLogBuf, L"[DEBUG] After merge test: bench count=%d\n", (int)player.bench.size());
-	OutputDebugString(mergeLogBuf);
 
 	return true;
 }
