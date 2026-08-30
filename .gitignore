@@ -9,6 +9,9 @@ ipch/
 [Bb]in/
 [Oo]bj/
 
+# ==== Runtime-generated game data ====
+savedata.txt
+
 # ==== Build artifacts (in case they escape the folders above) ====
 *.obj
 *.pch

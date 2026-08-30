@@ -111,9 +111,33 @@ void Game::Update()
 
 	if (m_gameState.currentPhase == Phase::Title)
 	{
-		// Aボタンで準備フェーズへ進む。
-		if (g_pad[0]->IsTrigger(enButtonA))
+		// セーブデータが有る場合は「[A] 続きから / [X] 新規開始」、無い場合は従来どおり「[A] 開始」。
+		const bool hasSave = m_saveSystem.SaveFileExists();
+
+		if (hasSave && g_pad[0]->IsTrigger(enButtonA))
 		{
+			// [A] CONTINUE: セーブデータをロードして準備フェーズへ。失敗時はタイトルに留まる。
+			if (m_saveSystem.Load(m_gameState, m_unitDatabase, m_itemDatabase))
+			{
+				m_currentShop.clear();
+				m_heldUnclaimedIndex = -1;
+				m_gameState.currentPhase = Phase::Preparation;
+				OutputDebugString(L"[Load] save data loaded, resuming Preparation.\n");
+			}
+			else
+			{
+				OutputDebugString(L"[Load] FAILED to load save data (missing/corrupt/old). Staying on Title.\n");
+			}
+		}
+		else if (hasSave && g_pad[0]->IsTrigger(enButtonX))
+		{
+			// [X] NEW GAME: セーブをロードせず、Start()時のInitializeNewRun済みの初期状態で開始する
+			// (ディスク上のセーブファイルはそのまま残す)。
+			m_gameState.currentPhase = Phase::Preparation;
+		}
+		else if (!hasSave && g_pad[0]->IsTrigger(enButtonA))
+		{
+			// セーブ無し: 従来どおりAボタンで新規開始。
 			m_gameState.currentPhase = Phase::Preparation;
 		}
 	}
@@ -156,6 +180,17 @@ void Game::Update()
 					(int)i, m_currentShop[i]->name.c_str(), m_currentShop[i]->cost);
 				OutputDebugString(buf);
 			}
+		}
+
+		// F5キーで、現在の準備フェーズの進行状況をファイルへ手動セーブする。
+		// (ゲームパッドのA/B/X/Y/LB1/RB1は準備フェーズで全て別用途に埋まっているため、キーボードに割り当てる)
+		if (g_keyboard->IsTrigger(VK_F5))
+		{
+			bool saved = m_saveSystem.Save(m_gameState);
+			m_shopUI.PushFeedback(
+				saved ? L"セーブしました (savedata.txt)" : L"セーブに失敗しました",
+				saved ? ShopUIRenderer::FeedbackLevel::Success : ShopUIRenderer::FeedbackLevel::Failure);
+			OutputDebugString(saved ? L"[Save] wrote savedata.txt\n" : L"[Save] FAILED to write savedata.txt\n");
 		}
 
 		// Aボタン(またはマウス左クリック/Enter/Space)。フォーカスと「アイテムを手に持っているか」で
@@ -697,7 +732,7 @@ void Game::Render(RenderContext& rc)
 	// タイトル画面中は盤面・各種HUDを一切出さず、タイトル文字列のみを表示する。
 	if (m_gameState.currentPhase == Phase::Title)
 	{
-		m_titleUI.Draw(rc, g_gameTime->GetFrameDeltaTime());
+		m_titleUI.Draw(rc, g_gameTime->GetFrameDeltaTime(), m_saveSystem.SaveFileExists());
 		return;
 	}
 

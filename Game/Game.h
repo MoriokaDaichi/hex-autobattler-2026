@@ -26,6 +26,7 @@
 #include "TitleUIRenderer.h"
 #include "ResultUIRenderer.h"
 #include "CursorSelectionSystem.h"
+#include "SaveSystem.h"
 
 class Game : public IGameObject
 {
@@ -74,6 +75,7 @@ private:
 	TitleUIRenderer m_titleUI; // タイトル画面(Phase::Title)のタイトル文字列・スタート操作ガイドを2D表示する。
 	ResultUIRenderer m_resultUI; // ラウンド結果一言・ゲームオーバー/ゲームクリア画面を2D表示する。
 	CursorSelectionSystem m_cursorSelection; // マウス・キーボード・ゲームパッドを横断するカーソル/選択状態。
+	SaveSystem m_saveSystem; // 準備フェーズの進行状況(GameState)をテキストファイルへ保存/復元する。
 
 	// 準備フェーズで「手に持っている」未装備アイテムの、players[0].unclaimedItems上のindex(-1で無し)。
 	// Itemsフォーカス中にAで持ち、Bench/Boardのユニットを選んでAで装備確定するまでの一時状態。

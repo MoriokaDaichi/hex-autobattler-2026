@@ -20,20 +20,23 @@ namespace
 
 	const float kPromptY = -120.0f;
 	const float kPromptScale = 0.66f;
-	const float kPromptStartX = -135.0f; // "PRESS [A] TO START"がこのスケールで中央付近に来るよう調整した値。
+	const float kPromptStartX = -135.0f;      // "PRESS [A] TO START"がこのスケールで中央付近に来るよう調整した値。
+	const float kPromptStartXSave = -250.0f;  // "[A] CONTINUE    [X] NEW GAME"用(文言が長いぶん左寄りにする)。
 
 	// タイトル名は"HEX ARENA"に正式決定済み(2026-08-30、ユーザー確認済み)。
 	const wchar_t* kTitleText = L"HEX ARENA";
 	const wchar_t* kPromptText = L"PRESS [A] TO START";
+	const wchar_t* kPromptTextSave = L"[A] CONTINUE     [X] NEW GAME"; // セーブデータがある場合。
 
 	// このFontEngineの描画パイプラインはアルファブレンドが機能しない(常に不透明)ため、
 	// アルファ値でのフェードではなく、一定間隔で描画そのものをスキップする方式で点滅させる。
 	const float kBlinkIntervalSec = 0.5f; // この秒数ごとに表示/非表示を切り替える。
 }
 
-void TitleUIRenderer::Draw(RenderContext& rc, float deltaTime)
+void TitleUIRenderer::Draw(RenderContext& rc, float deltaTime, bool hasSaveData)
 {
 	m_elapsedTime += deltaTime;
+	m_hasSaveData = hasSaveData;
 	g_renderingEngine->AddRenderObject(this);
 }
 
@@ -49,7 +52,9 @@ void TitleUIRenderer::OnRender2D(RenderContext& rc)
 	bool showPrompt = (blinkPhase % 2) == 0;
 	if (showPrompt)
 	{
-		m_font.Draw(kPromptText, Vector2(kPromptStartX, kPromptY), Vector4(1.0f, 1.0f, 1.0f, 1.0f), 0.0f, kPromptScale, kTopLeftPivot);
+		const wchar_t* prompt = m_hasSaveData ? kPromptTextSave : kPromptText;
+		float promptStartX = m_hasSaveData ? kPromptStartXSave : kPromptStartX;
+		m_font.Draw(prompt, Vector2(promptStartX, kPromptY), Vector4(1.0f, 1.0f, 1.0f, 1.0f), 0.0f, kPromptScale, kTopLeftPivot);
 	}
 
 	m_font.End(rc);
