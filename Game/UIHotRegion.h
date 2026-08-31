@@ -12,6 +12,8 @@ enum class UIRegionKind
 	BoardUnit,       // hex = 盤面上のユニット位置。
 	BoardEmptyHex,   // hex = 盤面上の空マス(自陣のみ登録。配置/移動先として使う)。
 	UnclaimedItem,   // index = player.unclaimedItems上のindex。
+	TraitRow,        // index = (int)TraitType(表示順はTraitPanelUIRenderer内で発動中/未発動に並べ替わるため、
+	                 // 位置indexではなくTraitType自体を格納する)。
 	RerollButton,
 	BuyXpButton,
 	LockButton,
@@ -19,6 +21,12 @@ enum class UIRegionKind
 	TitleStartButton,    // タイトル: セーブ無し時の「開始」/ セーブ有り時の「続きから」。
 	TitleNewGameButton,  // タイトル: セーブ有り時のみ「新規開始」。
 	RestartButton,       // GameOver/Victory: リスタート。
+	// 以下はクリック不可・ホバーでツールチップのみ(フェーズ2)。フェーズを問わず常時表示されるHUD。
+	GoldDisplay,
+	HudLevelDisplay,
+	HudBoardCountDisplay,
+	HudRoundDisplay,
+	HudStreakDisplay,
 };
 
 /// <summary>

@@ -233,6 +233,9 @@
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="CursorSelectionSystem.cpp" />
     <ClCompile Include="UIInteractionSystem.cpp" />
+    <ClCompile Include="UITextUtil.cpp" />
+    <ClCompile Include="TooltipContentBuilder.cpp" />
+    <ClCompile Include="TooltipUIRenderer.cpp" />
     <ClCompile Include="GameState.cpp" />
     <ClCompile Include="HexCoord.cpp" />
     <ClCompile Include="HexGridRenderer.cpp" />
@@ -267,6 +270,9 @@
     <ClInclude Include="CursorSelectionSystem.h" />
     <ClInclude Include="UIInteractionSystem.h" />
     <ClInclude Include="UIHotRegion.h" />
+    <ClInclude Include="UITextUtil.h" />
+    <ClInclude Include="TooltipContentBuilder.h" />
+    <ClInclude Include="TooltipUIRenderer.h" />
     <ClInclude Include="GameState.h" />
     <ClInclude Include="HexCoord.h" />
     <ClInclude Include="HexGridRenderer.h" />

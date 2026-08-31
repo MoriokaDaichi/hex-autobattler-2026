@@ -31,6 +31,8 @@
 #include "SaveSystem.h"
 #include "UIHotRegion.h"
 #include "UIInteractionSystem.h"
+#include "TooltipContentBuilder.h"
+#include "TooltipUIRenderer.h"
 
 class Game : public IGameObject
 {
@@ -89,6 +91,18 @@ private:
 	// 依存すると1フレーム遅延するため。docs/tasks/ui-mouse-cards/plan.md §0-4/§1-3)。
 	UIHotRegionList m_hotRegions;
 	UIInteractionSystem m_uiInteraction; // 上記からホバー/クリックを解決する。
+
+	// ツールチップ(ui-mouse-cards フェーズ2)。マウスホバー(kHoverDelaySec継続)、または
+	// ゲームパッド/キーボードでフォーカス中の要素(遅延無し)の詳細をカーソル付近にカード表示する
+	// (docs/tasks/ui-mouse-cards/plan.md §3-1)。内容はGame::Update()末尾でTooltipContentBuilderに
+	// より毎フレーム組み立て、Game::Render()でm_tooltipUI.Draw()へ渡す。
+	TooltipUIRenderer m_tooltipUI;
+	UIHotRegion m_hoverCandidate;      // ホバー遅延タイマーの対象として追跡中の領域。
+	float m_hoverTimer = 0.0f;         // m_hoverCandidateに留まっている継続時間(秒)。
+	bool m_tooltipVisible = false;     // このフレーム、ツールチップを表示するか。
+	std::vector<std::wstring> m_tooltipLines; // 表示中の内容(TooltipContentBuilder::Buildの結果)。
+	Vector2 m_tooltipAnchor;           // 表示位置の基準点(UI_SPACE座標)。
+	static constexpr float kHoverDelaySec = 0.3f; // マウスホバーでツールチップが出るまでの継続時間。
 
 	// マウス操作専用: ベンチのユニットを左クリックで「掴んだ」状態。盤面の空きマスを左クリックすると
 	// Player::PlaceUnitOnBoard()を呼んで確定する(ゲームパッドXボタンの配置ロジックを流用、新しい

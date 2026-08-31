@@ -51,6 +51,42 @@ void PlayerStatusUIRenderer::Draw(RenderContext& rc, const Player& player, int x
 	g_renderingEngine->AddRenderObject(this);
 }
 
+void PlayerStatusUIRenderer::BuildHotRegions(UIHotRegionList& out) const
+{
+	// GOLD行(kX, kGoldY)。
+	{
+		UIHotRegion region;
+		region.kind = UIRegionKind::GoldDisplay;
+		region.minX = kX - 4.0f;
+		region.maxX = kX + 150.0f;
+		region.minY = kGoldY - 24.0f;
+		region.maxY = kGoldY + 4.0f;
+		out.push_back(region);
+	}
+
+	// BOARD n/m(kX+kBoardCol, kGoldYと同じ行)。
+	{
+		UIHotRegion region;
+		region.kind = UIRegionKind::HudBoardCountDisplay;
+		region.minX = kX + kBoardCol - 4.0f;
+		region.maxX = kX + kBoardCol + 150.0f;
+		region.minY = kGoldY - 24.0f;
+		region.maxY = kGoldY + 4.0f;
+		out.push_back(region);
+	}
+
+	// LV行 + XPバー(kX〜kXPBarX+kXPBarBgWidth、kLevelY基準)をまとめて1領域にする。
+	{
+		UIHotRegion region;
+		region.kind = UIRegionKind::HudLevelDisplay;
+		region.minX = kX - 4.0f;
+		region.maxX = kXPBarX + kXPBarBgWidth + 60.0f; // XPバー右の数値テキストぶんの余裕。
+		region.minY = kLevelY - 24.0f;
+		region.maxY = kLevelY + 4.0f;
+		out.push_back(region);
+	}
+}
+
 void PlayerStatusUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;

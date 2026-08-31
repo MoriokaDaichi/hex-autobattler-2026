@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <string>
 #include <vector>
+#include "UIHotRegion.h"
 
 struct UnitInstance;
 class TraitDatabase;
@@ -23,6 +24,13 @@ public:
 	/// 準備フェーズ中、毎フレーム呼ぶ。boardの構成から各トレイトの発動状況を集計して保持する。
 	/// </summary>
 	void Draw(RenderContext& rc, const std::vector<UnitInstance>& board, const TraitDatabase& traitDatabase, const TraitSystem& traitSystem);
+
+	/// <summary>
+	/// 現フレームの各トレイト行のクリック可能矩形(ホバーのみ、クリック無反応)をoutへ追加する。
+	/// 描画を伴わない純粋関数。Draw()と同じ「発動中を先頭にまとめる」並べ替えロジックを行毎に
+	/// 再現し、各行にそのトレイトのUIHotRegion(index=(int)TraitType)を対応付ける。
+	/// </summary>
+	void BuildHotRegions(const std::vector<UnitInstance>& board, const TraitDatabase& traitDatabase, const TraitSystem& traitSystem, UIHotRegionList& out) const;
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;

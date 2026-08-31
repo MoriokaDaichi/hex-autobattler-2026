@@ -119,6 +119,12 @@ void Game::Update()
 	// マウス操作基盤: 今フレームのクリック可能矩形一覧を、フェーズごとに毎回作り直す
 	// (Render()側のDraw()呼び出しを流用すると1フレーム遅延するため。plan.md §0-4/§1-3)。
 	m_hotRegions.clear();
+
+	// GOLD/LV/BOARD、ROUND/連敗/連勝連敗はフェーズを問わず常時表示されるHUDのため、
+	// ヒット領域(ホバーのみ・クリック無反応)もフェーズ分岐の外で毎回登録する。
+	m_playerStatusUI.BuildHotRegions(m_hotRegions);
+	m_roundRecordUI.BuildHotRegions(m_hotRegions);
+
 	if (m_gameState.currentPhase == Phase::Title)
 	{
 		m_titleUI.BuildHotRegions(m_saveSystem.SaveFileExists(), m_hotRegions);
@@ -129,6 +135,7 @@ void Game::Update()
 		m_shopUI.BuildHotRegions(m_currentShop, m_hotRegions);
 		m_boardUI.BuildHotRegions(hotRegionPlayer, m_hotRegions);
 		m_itemInventoryUI.BuildHotRegions(hotRegionPlayer, m_hotRegions);
+		m_traitPanelUI.BuildHotRegions(hotRegionPlayer.board, m_traitDatabase, m_traitSystem, m_hotRegions);
 
 		// 盤面(自陣q0-2、r0-2)のヒット領域。ユニットが居るマスはBoardUnit、空きマスはBoardEmptyHex。
 		// 透視射影のため、等方形(正方形)の固定半径だとr(奥行き)方向にヒット矩形が大きく重なることが
@@ -1088,6 +1095,99 @@ void Game::Update()
 			m_gameState.currentPhase = Phase::Preparation;
 		}
 	}
+
+	// --- ツールチップ(フェーズ2): ホバー中の要素を解決し、表示内容を組み立てる ---
+	// この時点(Update()末尾)のm_hotRegionsは先頭で構築した"このフレーム開始時点"のものだが、
+	// クリック等で今フレーム中に状態が変わっていても、表示内容(TooltipContentBuilder)自体は
+	// ここでプレイヤー等の最新状態から組み立てるため実質最新の内容になる(位置判定だけ
+	// フレーム先頭のレイアウトを使う。ヒット領域自体は毎フレーム作り直しているのでズレは
+	// 蓄積しない)。docs/tasks/ui-mouse-cards/plan.md §3-1参照。
+	{
+		UIHotRegion hoverTarget;
+		bool haveHoverTarget = false;
+		bool isMouseHover = false;
+
+		UIHotRegion mouseHover;
+		if (m_uiInteraction.GetHovered(mouseHover))
+		{
+			hoverTarget = mouseHover;
+			haveHoverTarget = true;
+			isMouseHover = true;
+		}
+		else if (m_gameState.currentPhase == Phase::Preparation)
+		{
+			// マウスが何もホバーしていなければ、ゲームパッド/キーボードでフォーカス中の要素を
+			// m_hotRegionsから逆引きする(遅延無しで即表示、intent.md要求)。
+			InputFocus focus = m_cursorSelection.GetFocus();
+			UIRegionKind wantKind = UIRegionKind::ShopSlot;
+			int wantIndex = -1;
+			HexCoord wantHex;
+			bool wantByHex = false;
+
+			if (focus == InputFocus::Shop) { wantKind = UIRegionKind::ShopSlot; wantIndex = m_cursorSelection.GetListCursorIndex(); }
+			else if (focus == InputFocus::Bench) { wantKind = UIRegionKind::BenchUnit; wantIndex = m_cursorSelection.GetListCursorIndex(); }
+			else if (focus == InputFocus::Items) { wantKind = UIRegionKind::UnclaimedItem; wantIndex = m_cursorSelection.GetListCursorIndex(); }
+			else if (focus == InputFocus::Board) { wantByHex = true; m_cursorSelection.GetHexCursor(wantHex); }
+
+			for (const auto& region : m_hotRegions)
+			{
+				bool matched = wantByHex
+					? ((region.kind == UIRegionKind::BoardUnit || region.kind == UIRegionKind::BoardEmptyHex) && region.hex == wantHex)
+					: (region.kind == wantKind && region.index == wantIndex);
+				if (matched)
+				{
+					hoverTarget = region;
+					haveHoverTarget = true;
+					break;
+				}
+			}
+		}
+
+		if (haveHoverTarget)
+		{
+			bool sameAsCandidate = (m_hoverCandidate.kind == hoverTarget.kind)
+				&& (m_hoverCandidate.index == hoverTarget.index)
+				&& (m_hoverCandidate.hex == hoverTarget.hex);
+			if (!sameAsCandidate)
+			{
+				m_hoverCandidate = hoverTarget;
+				m_hoverTimer = 0.0f;
+			}
+			m_hoverTimer += g_gameTime->GetFrameDeltaTime();
+
+			// マウスホバーはkHoverDelaySec継続してから表示、ゲームパッド/キーボードのフォーカスは即表示。
+			bool show = !isMouseHover || (m_hoverTimer >= kHoverDelaySec);
+			if (show)
+			{
+				Player& tooltipPlayer = m_gameState.players[0];
+				m_tooltipLines = TooltipContentBuilder::Build(hoverTarget, m_currentShop, tooltipPlayer, m_gameState,
+					m_levelSystem.XPForNextLevel(tooltipPlayer.level),
+					m_unitDatabase, m_itemDatabase, m_traitDatabase, m_traitSystem);
+				m_tooltipVisible = !m_tooltipLines.empty();
+
+				if (isMouseHover)
+				{
+					Vector2 mouseUI;
+					m_tooltipAnchor = CursorSelectionSystem::ScreenToUISpace(mouseUI) ? mouseUI : Vector2(hoverTarget.maxX, hoverTarget.maxY);
+				}
+				else
+				{
+					// ゲームパッド/キーボード操作時は、対象要素の右上あたりを基準点にする
+					// (マウスカーソルの実位置は操作と無関係なため使わない)。
+					m_tooltipAnchor = Vector2(hoverTarget.maxX, hoverTarget.maxY);
+				}
+			}
+			else
+			{
+				m_tooltipVisible = false;
+			}
+		}
+		else
+		{
+			m_hoverTimer = 0.0f;
+			m_tooltipVisible = false;
+		}
+	}
 }
 
 /// <summary>
@@ -1213,10 +1313,16 @@ void Game::Render(RenderContext& rc)
 	// (これを呼ばないとDrawRect呼び出しぶんSpriteが際限なく増える)。
 	m_uiRectRenderer.BeginFrame();
 
-	// タイトル画面中は盤面・各種HUDを一切出さず、タイトル文字列のみを表示する。
+	// タイトル画面中は盤面・各種HUDを一切出さず、タイトル文字列のみを表示する
+	// (ただしツールチップ(フェーズ2)は"PRESS [A] TO START"等のボタンに対して出したいため、
+	// 早期returnの前に描画する)。
 	if (m_gameState.currentPhase == Phase::Title)
 	{
 		m_titleUI.Draw(rc, g_gameTime->GetFrameDeltaTime(), m_saveSystem.SaveFileExists());
+		if (m_tooltipVisible)
+		{
+			m_tooltipUI.Draw(rc, m_tooltipLines, m_tooltipAnchor, m_uiRectRenderer);
+		}
 		return;
 	}
 
@@ -1282,5 +1388,12 @@ void Game::Render(RenderContext& rc)
 	else if (m_gameState.currentPhase == Phase::Victory)
 	{
 		m_resultUI.DrawVictory(rc, GameState::kTotalRounds, g_gameTime->GetFrameDeltaTime(), m_uiRectRenderer);
+	}
+
+	// ツールチップ(フェーズ2)は最前面に描く。他の全UI Rendererより後にAddRenderObjectする
+	// (2D描画パスは登録順に描画される前提。plan.md §4-3参照)。
+	if (m_tooltipVisible)
+	{
+		m_tooltipUI.Draw(rc, m_tooltipLines, m_tooltipAnchor, m_uiRectRenderer);
 	}
 }

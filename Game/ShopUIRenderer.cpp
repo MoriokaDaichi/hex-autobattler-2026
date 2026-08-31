@@ -2,6 +2,7 @@
 #include "ShopUIRenderer.h"
 #include "Player.h"
 #include "UIRectRenderer.h"
+#include "UITextUtil.h"
 
 namespace
 {
@@ -59,21 +60,6 @@ namespace
 		}
 	}
 
-	const wchar_t* TraitName(TraitType type)
-	{
-		switch (type)
-		{
-		case TraitType::Monster:  return L"魔物";
-		case TraitType::Human:    return L"人間";
-		case TraitType::Hero:     return L"英雄";
-		case TraitType::Warrior:  return L"戦士";
-		case TraitType::Mage:     return L"魔道士";
-		case TraitType::Guardian: return L"守護者";
-		case TraitType::Assassin: return L"暗殺者";
-		case TraitType::Ranger:   return L"狩人";
-		default:                  return L"?";
-		}
-	}
 
 	Vector4 FeedbackColor(ShopUIRenderer::FeedbackLevel level)
 	{
@@ -119,7 +105,7 @@ void ShopUIRenderer::Draw(
 		for (size_t t = 0; t < def->traits.size() && t < kMaxShownTraits; ++t)
 		{
 			if (t > 0) view.traits += L"/";
-			view.traits += TraitName(def->traits[t]);
+			view.traits += UITextUtil::TraitName(def->traits[t]);
 		}
 		if (def->traits.size() > kMaxShownTraits) view.traits += L"+";
 

@@ -72,6 +72,33 @@ void RoundRecordUIRenderer::Draw(RenderContext& rc, const GameState& gameState)
 	g_renderingEngine->AddRenderObject(this);
 }
 
+void RoundRecordUIRenderer::BuildHotRegions(UIHotRegionList& out) const
+{
+	// ROUND/残りラウンド/連敗の3行分をまとめて1領域にする(kTopY〜kTopY-2*kStepY)。
+	{
+		UIHotRegion region;
+		region.kind = UIRegionKind::HudRoundDisplay;
+		region.minX = kX - 4.0f;
+		region.maxX = kX + 300.0f;
+		region.minY = kTopY - kStepY * 2.0f - 24.0f;
+		region.maxY = kTopY + 4.0f;
+		out.push_back(region);
+	}
+
+	// 連勝連敗ストリーク(残り行と同じy、kStreakCol分右にずれた位置)。上のHudRoundDisplayより
+	// 後に登録することで、この領域内はストリーク表示が優先してヒットする
+	// (UIInteractionSystemは登録順の後ろから探索するため)。
+	{
+		UIHotRegion region;
+		region.kind = UIRegionKind::HudStreakDisplay;
+		region.minX = kX + kStreakCol - 4.0f;
+		region.maxX = kX + kStreakCol + 150.0f;
+		region.minY = kTopY - kStepY - 24.0f;
+		region.maxY = kTopY - kStepY + 4.0f;
+		out.push_back(region);
+	}
+}
+
 void RoundRecordUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;

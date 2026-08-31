@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <string>
+#include "UIHotRegion.h"
 
 struct GameState;
 
@@ -16,6 +17,13 @@ class RoundRecordUIRenderer : public IRenderer, public Noncopyable
 public:
 	/// <summary>毎フレームGame::Render()から呼ぶ。GameStateの現在値をコピーして保持する。</summary>
 	void Draw(RenderContext& rc, const GameState& gameState);
+
+	/// <summary>
+	/// ROUND/残りラウンド/連敗のクリック可能矩形(HudRoundDisplay)と、連勝連敗ストリーク表示の
+	/// クリック可能矩形(HudStreakDisplay)をoutへ追加する。ホバーのみ・クリック無反応。
+	/// レイアウトが固定のため引数無し・描画を伴わない純粋関数。
+	/// </summary>
+	void BuildHotRegions(UIHotRegionList& out) const;
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;

@@ -2,6 +2,7 @@
 #include "ItemInventoryUIRenderer.h"
 #include "Player.h"
 #include "ItemDef.h"
+#include "UITextUtil.h"
 
 namespace
 {
@@ -27,40 +28,13 @@ namespace
 	const Vector4 kHeldColor(0.55f, 1.0f, 0.65f, 1.0f);      // 手に持っている枠。
 	const Vector4 kEmptyColor(0.6f, 0.62f, 0.66f, 1.0f);
 
-	/// <summary>StatEffect 1つを "AT+10" / "HP+20%" のような短いテキストにする。</summary>
-	std::wstring EffectShortText(const StatEffect& e)
-	{
-		const wchar_t* label = L"?";
-		bool percent = false;
-		switch (e.stat)
-		{
-		case StatEffectType::AttackFlat:             label = L"AT"; break;
-		case StatEffectType::AttackPercent:          label = L"AT"; percent = true; break;
-		case StatEffectType::MagicPowerFlat:         label = L"AP"; break;
-		case StatEffectType::MagicPowerPercent:      label = L"AP"; percent = true; break;
-		case StatEffectType::MaxHPFlat:              label = L"HP"; break;
-		case StatEffectType::MaxHPPercent:           label = L"HP"; percent = true; break;
-		case StatEffectType::PhysicalDefenseFlat:    label = L"物防"; break;
-		case StatEffectType::PhysicalDefensePercent: label = L"物防"; percent = true; break;
-		case StatEffectType::MagicDefenseFlat:       label = L"魔防"; break;
-		case StatEffectType::MagicDefensePercent:    label = L"魔防"; percent = true; break;
-		case StatEffectType::SkillThresholdFlat:     label = L"技"; break;
-		case StatEffectType::AttackSpeedFlat:        label = L"AS"; break;
-		case StatEffectType::AttackSpeedPercent:     label = L"AS"; percent = true; break;
-		}
-
-		wchar_t buf[32];
-		swprintf_s(buf, L"%ls+%d%ls", label, (int)e.value, percent ? L"%" : L"");
-		return buf;
-	}
-
 	std::wstring EffectsText(const ItemDef* def)
 	{
 		std::wstring s;
 		for (size_t i = 0; i < def->effects.size(); ++i)
 		{
 			if (i > 0) s += L" ";
-			s += EffectShortText(def->effects[i]);
+			s += UITextUtil::EffectShortText(def->effects[i]);
 		}
 		// パッシブ効果を持つアイテムは、末尾に短いタグを付ける(現状はオンヒット火傷のみ)。
 		for (const PassiveEffect& p : def->passives)

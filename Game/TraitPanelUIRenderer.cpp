@@ -84,6 +84,54 @@ void TraitPanelUIRenderer::Draw(RenderContext& rc, const std::vector<UnitInstanc
 	g_renderingEngine->AddRenderObject(this);
 }
 
+void TraitPanelUIRenderer::BuildHotRegions(const std::vector<UnitInstance>& board, const TraitDatabase& traitDatabase, const TraitSystem& traitSystem, UIHotRegionList& out) const
+{
+	// Draw()と同じ「発動中を先頭にまとめる」並べ替えを行毎に再現する(TraitDatabaseの登録順を
+	// 維持しつつ2グループに分ける点も含め、Draw()のロジックと一致させること)。
+	std::map<TraitType, int> traitCounts = traitSystem.CountBoardTraits(board);
+
+	std::vector<TraitType> activeTypes;
+	std::vector<TraitType> inactiveTypes;
+	for (const auto& traitDef : traitDatabase.GetAllTraitDefs())
+	{
+		int count = 0;
+		auto it = traitCounts.find(traitDef.type);
+		if (it != traitCounts.end())
+		{
+			count = it->second;
+		}
+
+		const TraitTier* activeTier = traitSystem.FindActiveTier(traitDef, count);
+		if (activeTier != nullptr)
+		{
+			activeTypes.push_back(traitDef.type);
+		}
+		else
+		{
+			inactiveTypes.push_back(traitDef.type);
+		}
+	}
+
+	std::vector<TraitType> orderedTypes;
+	orderedTypes.reserve(activeTypes.size() + inactiveTypes.size());
+	for (TraitType t : activeTypes) orderedTypes.push_back(t);
+	for (TraitType t : inactiveTypes) orderedTypes.push_back(t);
+
+	for (size_t i = 0; i < orderedTypes.size(); ++i)
+	{
+		float y = kTopY - kStepY * (float)(i + 1);
+
+		UIHotRegion region;
+		region.kind = UIRegionKind::TraitRow;
+		region.index = (int)orderedTypes[i];
+		region.minX = kX - 4.0f;
+		region.maxX = kX + 220.0f; // 想定最大幅(実機で要微調整)。
+		region.maxY = y + 4.0f;
+		region.minY = y - kStepY + 6.0f;
+		out.push_back(region);
+	}
+}
+
 void TraitPanelUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;
