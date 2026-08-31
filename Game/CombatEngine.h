@@ -195,15 +195,35 @@ private:
 			UseSkill(attacker, attackerOwner, actorIndex, target, targetOwner, targetIndex, enemyBoard, outEvents);
 			attacker.normalAttackCount = 0;
 			attacker.receivedAttackCount = 0;
+			PushGaugeChangeEvent(attacker, attackerOwner, actorIndex, outEvents); // ゲージが空になったことを再生側に伝える。
 		}
 		else
 		{
 			NormalAttack(attacker, attackerOwner, actorIndex, target, targetOwner, targetIndex, outEvents);
 			attacker.normalAttackCount++;
+			PushGaugeChangeEvent(attacker, attackerOwner, actorIndex, outEvents);
 		}
 
 		// 攻撃を受けた側は、被弾回数を+1する(通常攻撃・必殺技どちらでも)。
 		target.receivedAttackCount++;
+		PushGaugeChangeEvent(target, targetOwner, targetIndex, outEvents);
+	}
+
+	/// <summary>
+	/// unitの必殺技ゲージ(normalAttackCount+receivedAttackCount)が変化した直後に呼ぶ。
+	/// GaugeChangeイベントは自己参照(actor自身のゲージがafterValueになった)で、UIRendererでの
+	/// スキルゲージバー再生(CombatPlayback)にのみ使う軽量なイベント。
+	/// </summary>
+	void PushGaugeChangeEvent(const UnitInstance& unit, const std::string& ownerName, int unitIndex, std::vector<CombatEvent>& outEvents)
+	{
+		CombatEvent e;
+		e.type = CombatEventType::GaugeChange;
+		e.time = m_currentTime;
+		e.actorOwner = ownerName;
+		e.actorName = unit.def->name;
+		e.actorIndex = unitIndex;
+		e.afterValue = unit.normalAttackCount + unit.receivedAttackCount;
+		outEvents.push_back(e);
 	}
 
 	/// <summary>

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 struct Player;
+class UIRectRenderer;
 
 /// <summary>
 /// 所持ゴールドとプレイヤーレベル/経験値ゲージを、フェーズを問わず常時表示するHUD。
@@ -19,7 +20,8 @@ public:
 	/// 毎フレームGame::Render()の先頭(フェーズ分岐の外)から呼ぶ。
 	/// </summary>
 	/// <param name="xpForNextLevel">次レベルに必要な経験値(LevelSystem::XPForNextLevel)。最大レベル到達時は0。</param>
-	void Draw(RenderContext& rc, const Player& player, int xpForNextLevel);
+	/// <param name="rectRenderer">XPバーの塗り矩形を描く共通ヘルパー。OnRender2D用にポインタを保持する。</param>
+	void Draw(RenderContext& rc, const Player& player, int xpForNextLevel, UIRectRenderer& rectRenderer);
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;
@@ -33,5 +35,6 @@ private:
 	int m_xpForNextLevel = 0;
 	int m_boardCount = 0;    // 盤面に配置済みのユニット数。
 	int m_maxBoardSize = 0;  // 現在のレベルで置ける上限(Player::GetMaxBoardSize)。
+	UIRectRenderer* m_rectRenderer = nullptr; // Draw()で渡されたものをOnRender2D用に保持する。
 	bool m_hasData = false;
 };

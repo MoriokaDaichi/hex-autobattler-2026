@@ -94,6 +94,10 @@ private:
 			OutputDebugString(buf);
 			break;
 
+		case CombatEventType::GaugeChange:
+			// 頻度が高くログが埋まるため出力しない(スキルゲージバーの再生専用イベント)。
+			break;
+
 		case CombatEventType::Death:
 			swprintf_s(buf, L"[T=%6.2fs] [%hs] %hs has died!\n",
 				event.time, event.actorOwner.c_str(), event.actorName.c_str());
