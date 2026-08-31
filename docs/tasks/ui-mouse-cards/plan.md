@@ -47,17 +47,54 @@
 
 ### 1-1. スクリーン座標 → UI_SPACE 変換ヘルパー
 
+**[フェーズ1実装で更新・実機検証済み]** 当初案は「UI_SPACE_WIDTH/HEIGHT==FRAME_BUFFER_W/Hなので
+単純な平行移動でよい」としていたが、これは**誤りだった**。実機検証(DPIスケーリング環境、
+実クライアント矩形が1707x960相当になるケース)で、ウィンドウの実際のクライアント領域のピクセル数は
+`FRAME_BUFFER_W/H`(1920x1080)と一致しない場合があると判明。`FRAME_BUFFER_W/H`で直接割ると
+マウス操作可能な範囲が画面の一部に縮小してしまう(コミット`d34e107`で修正)。
+
+**さらに、この問題は新設のScreenToUISpaceだけでなく、既存の`TryMouseToHex`(盤面ヘックスpicking)にも
+同じ形で存在していた**(FRAME_BUFFER_W/Hで直接NDC化しており、実クライアント矩形を見ていなかった)。
+そのため実装では両方を修正した。
+
 新規関数の置き場所: `Game`に持たせず`CursorSelectionSystem`に追加する
-(`TryMouseToHex`と同じ「マウス座標系変換」の責務にまとまるため。新規ファイルは作らない):
+(`TryMouseToHex`と同じ「マウス座標系変換」の責務にまとまるため。新規ファイルは作らない)。
+`GetClientRect(g_hWnd, ...)`で実際のクライアント矩形サイズを取得し、それを基準に0〜1へ正規化する
+共通ヘルパー`GetNormalizedMousePosition()`を、`TryMouseToHex`と`ScreenToUISpace`の両方が使う
+(`Game/system/system.h`の`g_hWnd`を利用するため、`CursorSelectionSystem.cpp`に
+`#include "system/system.h"`を追加):
 
 ```cpp
-// mx, my: g_mouse->GetPositionX()/GetPositionY() (ウィンドウクライアント座標、左上原点、ピクセル)。
-// 戻り値: UI_SPACE(1920x1080、中央原点、y上向き)の座標。ウィンドウ外なら outUI は不定、falseを返す。
-bool ScreenToUISpace(int mx, int my, Vector2& outUI)
+// CursorSelectionSystem.h(private static)
+static bool GetNormalizedMousePosition(float& outU, float& outV);
+
+// CursorSelectionSystem.cpp
+bool CursorSelectionSystem::GetNormalizedMousePosition(float& outU, float& outV)
 {
-    if (mx < 0 || my < 0 || mx >= (int)FRAME_BUFFER_W || my >= (int)FRAME_BUFFER_H) return false;
-    outUI.x = (float)mx - (float)UI_SPACE_WIDTH * 0.5f;
-    outUI.y = (float)UI_SPACE_HEIGHT * 0.5f - (float)my;
+    RECT clientRect;
+    if (!GetClientRect(g_hWnd, &clientRect)) return false;
+    int clientW = clientRect.right - clientRect.left;
+    int clientH = clientRect.bottom - clientRect.top;
+    if (clientW <= 0 || clientH <= 0) return false;
+
+    int mx = g_mouse->GetPositionX();
+    int my = g_mouse->GetPositionY();
+    if (mx < 0 || my < 0 || mx >= clientW || my >= clientH) return false; // クライアント領域外。
+
+    outU = (float)mx / (float)clientW;
+    outV = (float)my / (float)clientH;
+    return true;
+}
+
+// TryMouseToHexは ndcX = u*2-1, ndcY = 1-v*2 として使う(既存のNDC変換ロジックはそのまま)。
+
+// ScreenToUISpace(引数無し。常に現在のマウス位置を読む):
+bool CursorSelectionSystem::ScreenToUISpace(Vector2& outUI)
+{
+    float u, v;
+    if (!GetNormalizedMousePosition(u, v)) return false;
+    outUI.x = u * (float)UI_SPACE_WIDTH - (float)UI_SPACE_WIDTH * 0.5f;
+    outUI.y = (float)UI_SPACE_HEIGHT * 0.5f - v * (float)UI_SPACE_HEIGHT;
     return true;
 }
 ```
@@ -585,10 +622,16 @@ void DrawCardPanel(RenderContext& rc, UIRectRenderer& r, const Vector2& pos, con
 
 ## 6. 未解決の懸念点・実装フェーズで確認すべきこと
 
-1. **`UIHotRegion`の盤面ヘックス→UI矩形サイズ**: ヘックス1マスの見かけ上のUI空間サイズは
-   カメラ距離・射影で決まるため、固定ピクセル半径では画面端(遠近感で小さく見える位置)で
-   ズレる可能性がある。実装フェーズで実機確認し、必要なら`CalcTileCenter`±隣接マスの中点から
-   動的に矩形サイズを算出する方式に切り替える。
+1. **`UIHotRegion`の盤面ヘックス→UI矩形サイズ(§6-1)** [フェーズ1実機検証で解決・採用方式決定]:
+   当初の等方形(正方形、半径45px固定)は自陣9マス全部にマウス配置できることは確認できたが、
+   透視射影のためr(奥行き)方向にヒット矩形が大きく重なることが実機検証で判明した。
+   `CalcTileCenter`±隣接マスの中点から動的に算出する完全な方式(当初案)ではなく、
+   **異方性の固定ボックス**(X方向半幅35px、Y方向半高16px。奥行き方向は画面上で詰まって
+   見えるぶん小さくする)を採用した(`Game::Update()`の盤面ヒット領域構築ブロック、
+   `kHexHitHalfWidth`/`kHexHitHalfHeight`)。動的算出より簡易な方式で、レビューでは
+   「簡易案として許容、要すれば動的算出方式へ」との判断(承認済み)。**この数値自体はまだ
+   実機検証していない**(旧・等方形45px版でF5合格した後の変更のため)。フェーズ2着手時に
+   併せて実機確認し、ズレが残るようなら隣接マス中点からの動的算出方式へ切り替える。
 2. **右クリックの「持ち物を離す」と「売却確認」の判定順序**: 何かを持っている状態で
    BenchUnit/BoardUnitを右クリックした場合、「キャンセル」と「売却確認」のどちらを優先するか
    は§2-1の表で「何か持っている状態→キャンセル優先」としたが、実機でUXとして自然か確認する

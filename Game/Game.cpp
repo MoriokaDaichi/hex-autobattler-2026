@@ -131,8 +131,11 @@ void Game::Update()
 		m_itemInventoryUI.BuildHotRegions(hotRegionPlayer, m_hotRegions);
 
 		// 盤面(自陣q0-2、r0-2)のヒット領域。ユニットが居るマスはBoardUnit、空きマスはBoardEmptyHex。
-		// 1マスあたりの矩形サイズは固定値の暫定案(実機確認で要調整。plan.md §6-1/レビュー指摘D)。
-		const float kHexHitHalfSize = 45.0f;
+		// 透視射影のため、等方形(正方形)の固定半径だとr(奥行き)方向にヒット矩形が大きく重なることが
+		// 実機検証で判明した(plan.md §6-1/レビュー指摘D)。異方性の固定ボックスに変更する
+		// (X方向はマス間の間隔が比較的一定、Y方向は奥行きで詰まって見えるぶん小さめにする)。
+		const float kHexHitHalfWidth = 35.0f;
+		const float kHexHitHalfHeight = 16.0f;
 		for (int q = HexGridRenderer::kAllyZoneMinQ; q <= HexGridRenderer::kAllyZoneMaxQ; ++q)
 		{
 			for (int r = 0; r <= 2; ++r)
@@ -146,10 +149,10 @@ void Game::Update()
 
 				UIHotRegion region;
 				region.hex = hex;
-				region.minX = uiPos.x - kHexHitHalfSize;
-				region.maxX = uiPos.x + kHexHitHalfSize;
-				region.minY = uiPos.y - kHexHitHalfSize;
-				region.maxY = uiPos.y + kHexHitHalfSize;
+				region.minX = uiPos.x - kHexHitHalfWidth;
+				region.maxX = uiPos.x + kHexHitHalfWidth;
+				region.minY = uiPos.y - kHexHitHalfHeight;
+				region.maxY = uiPos.y + kHexHitHalfHeight;
 				region.kind = (hotRegionPlayer.FindBoardUnitAt(hex) != nullptr)
 					? UIRegionKind::BoardUnit : UIRegionKind::BoardEmptyHex;
 				m_hotRegions.push_back(region);
