@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include "StatEffect.h"
+#include "PassiveEffect.h"
 
 /// <summary>
 /// アイテムの分類。
@@ -20,4 +21,5 @@ struct ItemDef
 	std::string name;
 	ItemCategory category = ItemCategory::Component;
 	std::vector<StatEffect> effects; // 装備した対象ユニットに付与される効果。
+	std::vector<PassiveEffect> passives; // 装備した対象ユニットに与える、戦闘中に発動するパッシブ効果。
 };

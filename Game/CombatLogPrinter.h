@@ -86,6 +86,14 @@ private:
 			OutputDebugString(buf);
 			break;
 
+		case CombatEventType::Burn:
+			swprintf_s(buf, L"[T=%6.2fs] [%hs] %hs's BURN scorches [%hs] %hs for %d damage! (HP: %d -> %d)\n",
+				event.time, event.actorOwner.c_str(), event.actorName.c_str(),
+				event.targetOwner.c_str(), event.targetName.c_str(),
+				event.amount, event.beforeValue, event.afterValue);
+			OutputDebugString(buf);
+			break;
+
 		case CombatEventType::Death:
 			swprintf_s(buf, L"[T=%6.2fs] [%hs] %hs has died!\n",
 				event.time, event.actorOwner.c_str(), event.actorName.c_str());

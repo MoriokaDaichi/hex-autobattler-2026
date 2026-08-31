@@ -1,8 +1,25 @@
 ﻿#pragma once
 #include <vector>
+#include <string>
 #include "HexCoord.h"
 #include "UnitDef.h"
 #include "ItemDef.h"
+
+/// <summary>
+/// UnitInstanceに現在かかっている火傷(継続ダメージ)1つ分。
+/// CombatEngineが戦闘中にのみ使う(SimulateCombat開始時にクリアされる)。
+/// </summary>
+struct ActiveBurn
+{
+	int damagePerTick = 0;
+	float interval = 1.0f;      // 刻みの間隔(秒)。
+	float nextTickTime = 0.0f;  // 次の刻みが発生する戦闘内時刻(秒)。
+	int ticksRemaining = 0;
+	// 火傷の"出どころ"。CombatEventのactor情報として使う(表示専用、解決ロジックには影響しない)。
+	std::string sourceOwner;
+	std::string sourceName;
+	int sourceIndex = -1;
+};
 
 /// <summary>
 /// 盤面/ベンチに実際に存在する1体分のユニット状態。
@@ -33,6 +50,8 @@ struct UnitInstance
 	int shieldAmount = 0; // 現在持っているシールド量(DamageAndShield系の必殺技で付与される)。HPより先に減る。
 
 	std::vector<const ItemDef*> items; // 装備しているアイテム(最大数はItemSystem::kMaxItemSlotsで管理)。
+
+	std::vector<ActiveBurn> activeBurns; // 現在かかっている火傷。CombatEngineが戦闘開始時にクリアする。
 
 	UnitInstance() = default;
 	UnitInstance(const UnitDef* unitDef) : def(unitDef), currentHP(unitDef->baseHP) {}
