@@ -3,15 +3,10 @@
 
 void UIRectRenderer::Init()
 {
-	// Sprite::Draw()はg_camera2Dのビュー行列と、0.1〜1.0という狭いnear/far(ハードコードされた
-	// 直交射影)でMVPを組む。g_camera2Dはデフォルトのposition(0,0,1)/target(0,0,0)のままだと、
-	// Update()に渡すZ=0のスプライトがちょうどfar面(カメラからの距離1.0)上に乗ってしまい、
-	// 浮動小数の誤差でクリップされて何も描画されない(Game/配下でSprite未使用だったため
-	// 気づかれていなかった問題)。near/farの中間(距離0.5)にsprite群が収まるよう、
-	// ここでg_camera2Dを明示的に設定する(g_camera2DはSprite専用でFont等は使わないため、
-	// 他の描画への影響は無い)。
-	g_camera2D->SetPosition(Vector3(0.0f, 0.0f, 0.5f));
-	g_camera2D->SetTarget(Vector3(0.0f, 0.0f, 0.0f));
+	// 注意: g_camera2D はグローバルで、RenderingEngine の全画面合成スプライト
+	// (m_mainSprite / m_2DSprite) と共有されている。ここで位置/ターゲットを書き換えると
+	// 3Dシーン合成ごと左右反転する回帰が出る。触らないこと。
+	// Z=0 の far 面クリップ対策は DrawRect() 側で Update() に渡す Z で行う(下記参照)。
 
 	SpriteInitData initData;
 	// パスは"Assets/..."起点("Game/"無し)。HexGridRenderer::InitShaders()の
@@ -29,7 +24,10 @@ void UIRectRenderer::DrawRect(RenderContext& rc, const Vector2& pos, const Vecto
 {
 	// size(ピクセル) / テクスチャ原寸(32x32) でスケールを求め、白テクスチャを目的の矩形サイズへ引き伸ばす。
 	Vector3 scale(size.x / 32.0f, size.y / 32.0f, 1.0f);
-	m_sprite.Update(Vector3(pos.x, pos.y, 0.0f), Quaternion::Identity, scale, pivot);
+	// Z は -0.5f。既定 g_camera2D は eye z=-1 / target z=0(forward +Z)、Sprite::Draw() の
+	// 直交射影は near0.1/far1.0。world z=0 だと far 面ちょうどでクリップされ得るため、
+	// eye とターゲットの間(near/far 内・ミラーなし)に置く。g_camera2D 自体は書き換えない。
+	m_sprite.Update(Vector3(pos.x, pos.y, -0.5f), Quaternion::Identity, scale, pivot);
 	m_sprite.SetMulColor(color);
 	m_sprite.Draw(rc);
 }
