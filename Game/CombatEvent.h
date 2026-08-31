@@ -15,6 +15,7 @@ enum class CombatEventType
 	Shield,       // シールド付与。
 	ShieldAbsorb, // シールドによるダメージ吸収。
 	Burn,         // 火傷(継続ダメージ)の1刻み。防御・シールドを貫通する確定ダメージ。
+	GaugeChange,  // 必殺技ゲージの変化。自己参照イベント(actor自身のゲージがafterValueになった)。
 	Death,        // 撃破。
 	Warning,      // その他の警告(最大ターン到達など)。
 };

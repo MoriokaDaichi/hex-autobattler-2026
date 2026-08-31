@@ -2,23 +2,33 @@
 #include "BoardUIRenderer.h"
 #include "CombatPlayback.h"
 #include "Player.h"
+#include "UIRectRenderer.h"
 
 namespace
 {
 	// HPバーを浮かべる高さ(ユニットのワールド座標からの+Yオフセット)。モデルは約10倍スケールで大きい。
 	const float kBarWorldY = 150.0f;
 
-	const int kBarCells = 10;                 // HPバーのマス数。
-	// フォント(myfile.spritefont)に矩形やブロック罫線が収録されていないため、
-	// HPバーはASCII記号で表現する(未収録グリフを描くとSpriteFontが例外を投げアプリごと落ちる)。
-	const wchar_t kFilledCell = L'#';
-	const wchar_t kEmptyCell = L'-';
-
 	const Vector2 kCenterPivot(0.5f, 0.5f);   // テキストの中心をアンカーにする。
 	const Vector2 kTopLeftPivot(0.0f, 1.0f);  // ベンチ一覧用(左上アンカー、FPS表示と同じ)。
+	const Vector2 kLeftMidPivot(0.0f, 0.5f);  // バーの前景矩形用(左端基準で右に伸ばす)。
 
 	const float kBarLabelScale = 0.42f;
 	const float kBarValueScale = 0.44f;
+
+	// HPバー(塗り矩形)のレイアウト。中心x=bar.uiPos.x、背景の左端を基準に前景を伸ばす。
+	const float kBarBgWidth = 114.0f;
+	const float kBarBgHeight = 14.0f;
+	const float kBarFgWidth = 106.0f;   // 背景の内側(左右4pxずつ余白)。
+	const float kBarFgHeight = 10.0f;
+	const float kBarY = -6.0f;          // bar.uiPosからのYオフセット(旧ASCIIバーの位置を踏襲)。
+	const Vector4 kBarBgColor(0.22f, 0.22f, 0.26f, 0.9f); // 暗いスレート色の半透明背景(黒背景に対しても視認できる明るさ)。
+
+	// スキルゲージバー(塗り矩形)。HPバーの下に幅は揃えてやや薄く配置する。
+	const float kGaugeBgHeight = 6.0f;
+	const float kGaugeFgHeight = 4.0f;
+	const float kGaugeY = -22.0f;       // bar.uiPosからのYオフセット。
+	const Vector4 kGaugeColor(0.4f, 0.7f, 1.0f, 1.0f); // 必殺技(マナ)を連想する寒色系。
 
 	// ベンチ一覧のレイアウト(UI空間、中央原点・y上向き)。左端に縦並び。
 	const float kBenchX = -910.0f;
@@ -32,22 +42,6 @@ namespace
 		if (ratio > 0.5f)  return Vector4(0.45f, 0.95f, 0.5f, 1.0f);  // 緑
 		if (ratio > 0.25f) return Vector4(0.98f, 0.85f, 0.3f, 1.0f);  // 黄
 		return Vector4(1.0f, 0.4f, 0.35f, 1.0f);                      // 赤
-	}
-
-	std::wstring MakeBar(float ratio)
-	{
-		if (ratio < 0.0f) ratio = 0.0f;
-		if (ratio > 1.0f) ratio = 1.0f;
-		int filled = (int)(ratio * kBarCells + 0.5f);
-		if (filled <= 0 && ratio > 0.0f) filled = 1; // わずかでも残っていれば1マスは点ける。
-		if (filled > kBarCells) filled = kBarCells;
-
-		std::wstring s;
-		s.reserve(kBarCells + 2);
-		s += L'[';
-		for (int i = 0; i < kBarCells; ++i) s += (i < filled) ? kFilledCell : kEmptyCell;
-		s += L']';
-		return s;
 	}
 
 	std::wstring StarSuffix(int starLevel)
@@ -94,7 +88,7 @@ void BoardUIRenderer::DrawPreparation(RenderContext& rc, const Player& player)
 	g_renderingEngine->AddRenderObject(this);
 }
 
-void BoardUIRenderer::DrawCombat(RenderContext& rc, const CombatPlayback& playback)
+void BoardUIRenderer::DrawCombat(RenderContext& rc, const CombatPlayback& playback, UIRectRenderer& rectRenderer)
 {
 	m_bars.clear();
 	const auto& views = playback.GetUnitViews();
@@ -110,6 +104,8 @@ void BoardUIRenderer::DrawCombat(RenderContext& rc, const CombatPlayback& playba
 		bar.shield = v.displayShield;
 		bar.hpRatio = (v.maxHP > 0) ? (float)v.displayHP / (float)v.maxHP : 0.0f;
 		bar.shieldRatio = (v.maxHP > 0) ? (float)v.displayShield / (float)v.maxHP : 0.0f;
+		bar.gaugeRatio = (v.skillThreshold > 0) ? (float)v.displayGauge / (float)v.skillThreshold : 0.0f;
+		if (bar.gaugeRatio > 1.0f) bar.gaugeRatio = 1.0f;
 		bar.label = v.name + StarSuffix(v.starLevel);
 
 		Vector3 world = v.worldPos;
@@ -119,6 +115,7 @@ void BoardUIRenderer::DrawCombat(RenderContext& rc, const CombatPlayback& playba
 		m_bars.push_back(std::move(bar));
 	}
 
+	m_rectRenderer = &rectRenderer;
 	m_mode = Mode::Combat;
 	g_renderingEngine->AddRenderObject(this);
 }
@@ -126,6 +123,44 @@ void BoardUIRenderer::DrawCombat(RenderContext& rc, const CombatPlayback& playba
 void BoardUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (m_mode == Mode::None) return;
+
+	// 矩形(Sprite)はFont::Begin()〜End()の外側でまとめて描き終える(SpriteBatchの状態と
+	// 競合するため。docs/tasks/ui-sprite-bars/plan.md §0-8)。背景→前景の順で描くことで、
+	// あとから描くFontのテキストが最前面に来る。
+	if (m_mode == Mode::Combat && m_rectRenderer != nullptr)
+	{
+		for (const auto& bar : m_bars)
+		{
+			if (!bar.onScreen || !bar.alive) continue;
+
+			// HPバー: 背景 → HP前景(左詰め) → シールド前景(HP前景の右に隣接)。
+			Vector2 bgPos(bar.uiPos.x, bar.uiPos.y + kBarY);
+			m_rectRenderer->DrawRect(rc, bgPos, Vector2(kBarBgWidth, kBarBgHeight), kBarBgColor, kCenterPivot);
+
+			Vector2 hpPos(bar.uiPos.x - kBarFgWidth * 0.5f, bar.uiPos.y + kBarY);
+			float hpWidth = kBarFgWidth * bar.hpRatio;
+			m_rectRenderer->DrawRect(rc, hpPos, Vector2(hpWidth, kBarFgHeight), HPColor(bar.hpRatio), kLeftMidPivot);
+
+			if (bar.shieldRatio > 0.0f)
+			{
+				float remaining = 1.0f - bar.hpRatio;
+				float shieldRatio = (bar.shieldRatio < remaining) ? bar.shieldRatio : remaining; // 背景幅を超えて描かない。
+				if (shieldRatio > 0.0f)
+				{
+					Vector2 shieldPos(hpPos.x + hpWidth, bar.uiPos.y + kBarY);
+					m_rectRenderer->DrawRect(rc, shieldPos, Vector2(kBarFgWidth * shieldRatio, kBarFgHeight),
+						Vector4(0.75f, 0.9f, 1.0f, 0.9f), kLeftMidPivot);
+				}
+			}
+
+			// スキルゲージバー: HPバーの下に、背景 → 前景(左詰め)。
+			Vector2 gaugeBgPos(bar.uiPos.x, bar.uiPos.y + kGaugeY);
+			m_rectRenderer->DrawRect(rc, gaugeBgPos, Vector2(kBarBgWidth, kGaugeBgHeight), kBarBgColor, kCenterPivot);
+
+			Vector2 gaugePos(bar.uiPos.x - kBarFgWidth * 0.5f, bar.uiPos.y + kGaugeY);
+			m_rectRenderer->DrawRect(rc, gaugePos, Vector2(kBarFgWidth * bar.gaugeRatio, kGaugeFgHeight), kGaugeColor, kLeftMidPivot);
+		}
+	}
 
 	m_font.SetShadowParam(true, 2.0f, Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 	m_font.Begin(rc);
@@ -157,19 +192,17 @@ void BoardUIRenderer::OnRender2D(RenderContext& rc)
 			m_font.Draw(bar.label.c_str(), Vector2(bar.uiPos.x, bar.uiPos.y + 16.0f),
 				sideColor, 0.0f, kBarLabelScale, kCenterPivot);
 
-			// HPバー行。
-			wchar_t valueLine[96];
+			// HP数値行(バー本体は矩形で既に描画済み、ここは数値のみ)。
+			wchar_t valueLine[64];
 			if (bar.shield > 0)
 			{
-				swprintf_s(valueLine, L"%ls %d/%d +%d",
-					MakeBar(bar.hpRatio).c_str(), bar.hp, bar.maxHP, bar.shield);
+				swprintf_s(valueLine, L"%d/%d +%d", bar.hp, bar.maxHP, bar.shield);
 			}
 			else
 			{
-				swprintf_s(valueLine, L"%ls %d/%d",
-					MakeBar(bar.hpRatio).c_str(), bar.hp, bar.maxHP);
+				swprintf_s(valueLine, L"%d/%d", bar.hp, bar.maxHP);
 			}
-			m_font.Draw(valueLine, Vector2(bar.uiPos.x, bar.uiPos.y - 8.0f),
+			m_font.Draw(valueLine, Vector2(bar.uiPos.x, bar.uiPos.y + kBarY),
 				HPColor(bar.hpRatio), 0.0f, kBarValueScale, kCenterPivot);
 		}
 	}

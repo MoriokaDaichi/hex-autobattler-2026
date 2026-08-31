@@ -4,6 +4,7 @@
 
 struct Player;
 class CombatPlayback;
+class UIRectRenderer;
 
 /// <summary>
 /// 盤面まわりの2D UI を描画するクラス。
@@ -21,7 +22,9 @@ public:
 	void DrawPreparation(RenderContext& rc, const Player& player);
 
 	/// <summary>戦闘の再生中に毎フレーム呼ぶ。playbackの各ユニットのHPバーを表示対象にする。</summary>
-	void DrawCombat(RenderContext& rc, const CombatPlayback& playback);
+	/// <param name="rectRenderer">HPバー/スキルゲージバーの塗り矩形を描く共通ヘルパー。OnRender2D内で
+	/// 使うため、ここで受け取ったポインタをキャッシュしておく(Fontと違い毎フレームGameから渡される)。</param>
+	void DrawCombat(RenderContext& rc, const CombatPlayback& playback, UIRectRenderer& rectRenderer);
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;
@@ -36,6 +39,7 @@ private:
 		bool onScreen = false;    // カメラ視錐台内に射影できたか。
 		float hpRatio = 0.0f;     // 0〜1。
 		float shieldRatio = 0.0f; // 0〜1(maxHP基準)。
+		float gaugeRatio = 0.0f;  // 0〜1(1で必殺技発動可)。
 		int hp = 0;
 		int maxHP = 1;
 		int shield = 0;
@@ -57,4 +61,5 @@ private:
 	Mode m_mode = Mode::None;
 	std::vector<BarView> m_bars;
 	std::vector<BenchView> m_bench;
+	UIRectRenderer* m_rectRenderer = nullptr; // DrawCombat()で渡されたものをOnRender2D用に保持する。
 };

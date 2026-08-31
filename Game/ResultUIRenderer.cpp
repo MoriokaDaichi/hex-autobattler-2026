@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "ResultUIRenderer.h"
+#include "UIRectRenderer.h"
 
 namespace
 {
@@ -45,31 +46,10 @@ namespace
 	const float kBlinkIntervalSec = 0.5f;
 
 	// --- GameOver/Victory背景の暗幕 ---
-	// このFontEngineはアルファブレンドが機能せず、半透明の矩形を敷く手段が無い(Sprite経由で
-	// 敷くにはテクスチャアセットの新規追加が必要になり手が重い)ため、BoardUIRendererのHPバーと
-	// 同じ「'#'を敷き詰める」手法を流用し、ほぼ黒(不透明)の'#'ブロックをテキストの背後に描画して
-	// 盤面の色付きヘックスタイルとの重なりによる視認性低下を防ぐ。
-	const Vector4 kBackdropColor(0.03f, 0.03f, 0.04f, 1.0f);
-	const float kBackdropScale = 1.6f;
-	const float kBackdropX = -280.0f;
-	const float kBackdropY = 230.0f;
-	const wchar_t* kBackdropBlock =
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################\n"
-		L"##################";
+	// ui-sprite-barsタスクでUIRectRenderer(Sprite経由、本物のアルファブレンド)が使えるようになったため、
+	// 画面全体を覆う半透明の黒矩形1枚に置き換える(旧実装は'#'を敷き詰めた不透明ブロックだった)。
+	const Vector4 kBackdropColor(0.0f, 0.0f, 0.0f, 0.55f);
+	const Vector2 kCenterPivot(0.5f, 0.5f);
 }
 
 void ResultUIRenderer::DrawRoundResult(RenderContext& rc, CombatResult result)
@@ -79,28 +59,38 @@ void ResultUIRenderer::DrawRoundResult(RenderContext& rc, CombatResult result)
 	g_renderingEngine->AddRenderObject(this);
 }
 
-void ResultUIRenderer::DrawGameOver(RenderContext& rc, int reachedRound, int totalRounds, float deltaTime)
+void ResultUIRenderer::DrawGameOver(RenderContext& rc, int reachedRound, int totalRounds, float deltaTime, UIRectRenderer& rectRenderer)
 {
 	if (m_mode != Mode::GameOver) m_elapsedTime = 0.0f; // 新規に突入したフレームで点滅タイマーをリセット。
 	m_mode = Mode::GameOver;
 	m_reachedRound = reachedRound;
 	m_totalRounds = totalRounds;
 	m_elapsedTime += deltaTime;
+	m_rectRenderer = &rectRenderer;
 	g_renderingEngine->AddRenderObject(this);
 }
 
-void ResultUIRenderer::DrawVictory(RenderContext& rc, int totalRounds, float deltaTime)
+void ResultUIRenderer::DrawVictory(RenderContext& rc, int totalRounds, float deltaTime, UIRectRenderer& rectRenderer)
 {
 	if (m_mode != Mode::Victory) m_elapsedTime = 0.0f;
 	m_mode = Mode::Victory;
 	m_totalRounds = totalRounds;
 	m_elapsedTime += deltaTime;
+	m_rectRenderer = &rectRenderer;
 	g_renderingEngine->AddRenderObject(this);
 }
 
 void ResultUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (m_mode == Mode::None) return;
+
+	// 矩形(Sprite)はFont::Begin()〜End()の外側で先に描き終える(plan.md §0-8)。
+	if ((m_mode == Mode::GameOver || m_mode == Mode::Victory) && m_rectRenderer != nullptr)
+	{
+		// 画面全体を覆う半透明の黒矩形。盤面(色付きヘックスタイル)がうっすら透けて見える。
+		m_rectRenderer->DrawRect(rc, Vector2(0.0f, 0.0f),
+			Vector2((float)UI_SPACE_WIDTH, (float)UI_SPACE_HEIGHT), kBackdropColor, kCenterPivot);
+	}
 
 	m_font.SetShadowParam(true, 3.0f, Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 	m_font.Begin(rc);
@@ -117,17 +107,7 @@ void ResultUIRenderer::OnRender2D(RenderContext& rc)
 	else if (m_mode == Mode::GameOver || m_mode == Mode::Victory)
 	{
 		bool isVictory = (m_mode == Mode::Victory);
-
-		// 盤面(色付きヘックスタイル)と文字が重なって読みにくくなるため、
-		// 先に暗幕を敷いてから文字を描画する(描画順=手前奥、後勝ち)。
-		// '#'の字間・行間にできる隙間を埋めるため、半文字/半行分ずらした4枚を重ねて描画し、
-		// ほぼ隙間の無い塗りつぶしに見せる(Font::SetShadowParamの8方向オフセットと同じ考え方)。
-		const float kBackdropOffsetX = 18.0f;
-		const float kBackdropOffsetY = 20.0f;
-		m_font.Draw(kBackdropBlock, Vector2(kBackdropX, kBackdropY), kBackdropColor, 0.0f, kBackdropScale, kTopLeftPivot);
-		m_font.Draw(kBackdropBlock, Vector2(kBackdropX + kBackdropOffsetX, kBackdropY), kBackdropColor, 0.0f, kBackdropScale, kTopLeftPivot);
-		m_font.Draw(kBackdropBlock, Vector2(kBackdropX, kBackdropY - kBackdropOffsetY), kBackdropColor, 0.0f, kBackdropScale, kTopLeftPivot);
-		m_font.Draw(kBackdropBlock, Vector2(kBackdropX + kBackdropOffsetX, kBackdropY - kBackdropOffsetY), kBackdropColor, 0.0f, kBackdropScale, kTopLeftPivot);
+		// 暗幕は上でFont::Begin()より前に描画済み。
 
 		const wchar_t* bigText = isVictory ? kVictoryText : kGameOverText;
 		const Vector4& bigColor = isVictory ? kVictoryColor : kGameOverColor;

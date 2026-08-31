@@ -25,6 +25,11 @@ namespace
 		if (v.maxHP < 1) v.maxHP = 1;
 		v.displayHP = v.maxHP;   // 戦闘開始時は各Apply*Bonusesで全回復済み。
 		v.displayShield = 0;     // シールドは戦闘中に必殺技で付与される。開始時は0。
+		// ゲージはラウンドをまたいだ持ち越し有無という既存仕様には立ち入らず、渡されたUnitInstanceの
+		// 実際の値をそのまま表示初期値にする(displayHPをmaxHPから初期化するのと同じ扱い)。
+		v.displayGauge = unit.normalAttackCount + unit.receivedAttackCount;
+		v.skillThreshold = unit.def->skillThreshold + unit.bonusSkillThreshold;
+		if (v.skillThreshold < 1) v.skillThreshold = 1; // CombatEngine::GetEffectiveSkillThresholdと同じ式。
 		v.alive = true;
 		v.isEnemy = isEnemy;
 		return v;
@@ -142,6 +147,14 @@ void CombatPlayback::ApplyEvent(const CombatEvent& ev)
 		if (UnitView* v = ResolveActor(ev))
 		{
 			v->displayShield = ev.afterValue < 0 ? 0 : ev.afterValue;
+		}
+		break;
+
+	case CombatEventType::GaugeChange:
+		// 自己参照イベント(actor自身のゲージがafterValueになった)。
+		if (UnitView* v = ResolveActor(ev))
+		{
+			v->displayGauge = ev.afterValue < 0 ? 0 : ev.afterValue;
 		}
 		break;
 

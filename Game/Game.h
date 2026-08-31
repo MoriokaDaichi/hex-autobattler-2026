@@ -26,6 +26,7 @@
 #include "TraitPanelUIRenderer.h"
 #include "TitleUIRenderer.h"
 #include "ResultUIRenderer.h"
+#include "UIRectRenderer.h"
 #include "CursorSelectionSystem.h"
 #include "SaveSystem.h"
 
@@ -77,6 +78,7 @@ private:
 	TraitPanelUIRenderer m_traitPanelUI; // 準備フェーズ、全トレイトの発動状況を画面左側に2D表示する。
 	TitleUIRenderer m_titleUI; // タイトル画面(Phase::Title)のタイトル文字列・スタート操作ガイドを2D表示する。
 	ResultUIRenderer m_resultUI; // ラウンド結果一言・ゲームオーバー/ゲームクリア画面を2D表示する。
+	UIRectRenderer m_uiRectRenderer; // 単色矩形(HPバー・XPバー・スキルゲージバー・暗幕)を描く共通ヘルパー。
 	CursorSelectionSystem m_cursorSelection; // マウス・キーボード・ゲームパッドを横断するカーソル/選択状態。
 	SaveSystem m_saveSystem; // 準備フェーズの進行状況(GameState)をテキストファイルへ保存/復元する。
 

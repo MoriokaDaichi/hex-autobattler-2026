@@ -41,22 +41,27 @@
    `Font::Begin()`〜文字描画〜`End()`」の順序を必ず守る(矩形が背景、文字が前面という
    意図する見た目の重なり順にも一致する)。
 
-## 1. アセット変換(実装フェーズの最初の作業)
+## 1. アセット変換(実装フェーズの最初の作業、実施・検証済み)
 
-`Game/Assets/spriteData/color/white.png`(1536×864、単色白)を、既存の
-`Game/Assets/modelData/_pipeline_scripts/png_to_dds.py`(Blenderスクリプト、Y軸反転なし版)で
-DDS化する。モデルパイプラインで実績のあるコマンド(`HANDOFF.md`記載)をそのまま使う:
+[レビュー是正2] 単色画像に1536×864は不要(元のpng_to_dds.py案だと無圧縮5.3MBになりリポジトリを
+肥大化させるため却下)。**`texconv.exe`(`toolsProj/k2SLEditorProj/texconv.exe`)で32×32・
+ミップ無しにリサイズしながら直接DDS化**する方針に変更した。以下のコマンドで実施・確認済み:
 
+```powershell
+Set-Location "Game\Assets\spriteData\color"
+& "..\..\..\..\toolsProj\k2SLEditorProj\texconv.exe" -w 32 -h 32 -m 1 -f R8G8B8A8_UNORM -o . -y "white.png"
 ```
-"C:\Program Files\Blender Foundation\Blender 4.5\blender.exe" --background --python "Game\Assets\modelData\_pipeline_scripts\png_to_dds.py" -- "Game\Assets\spriteData\color\white.png" "Game\Assets\spriteData\color\white.dds"
-```
 
-- 出力先: `Game/Assets/spriteData/color/white.dds`(1536×864、無圧縮R8G8B8A8、約5.3MB)。
-  単色1枚なのでこのサイズで実害は無い(縮小加工はスコープ外、必要なら次タスクで検討)。
-- texconv.exe(`toolsProj/k2SLEditorProj/texconv.exe`)でも代替可能だが、モデルパイプラインで
-  実績があり結果の一貫性(Y軸の扱い等)が保証されている`png_to_dds.py`を優先する。
-- 変換後、実機で`white.dds`を読み込んだSpriteが真っ白な矩形として描けることを最初に確認してから
-  各UI Rendererの改修に進む(段階的検証)。
+- 出力: `Game/Assets/spriteData/color/white.dds`(32×32、無圧縮R8G8B8A8、**4,224バイト**)。
+  単色矩形の拡大描画に32×32で解像度不足になることは無い(`UIRectRenderer::DrawRect`は
+  スケールで目的サイズへ引き伸ばすだけ)。
+- 注意: 相対パスを`/`区切りで渡すと`-o`の出力ディレクトリと入力パスが二重結合されて失敗する
+  (`texconv`はWindowsパス前提)。上記のように出力先ディレクトリへ`cd`してから
+  ファイル名のみ・`-o .`で渡すと問題ない(実際に踏んだ失敗と回避策)。
+- png_to_dds.py(Blenderスクリプト)は今回未使用(モデルテクスチャ用にY軸反転の扱い等が
+  チューニングされているが、単色画像には無関係かつtexconvの方が一手順で完結するため)。
+- 検証: 実機で`white.dds`を読み込んだSpriteが真っ白な矩形として描けることを最初に確認してから
+  各UI Rendererの改修に進む(段階的検証、後述の実装ログ参照)。
 
 ## 2. 追加ファイル
 
@@ -108,29 +113,31 @@ private:
 void UIRectRenderer::Init()
 {
 	SpriteInitData initData;
-	const char* ddsPath = "Game/Assets/spriteData/color/white.dds"; // 実行時カレントディレクトリはGame/想定、既存UnitModelDisplay等のAssetsパス指定に合わせて要確認・調整。
-	initData.m_ddsFilePath[0] = ddsPath;
-	initData.m_fxFilePath = "Game/Assets/shader/sprite.fx";
-	initData.m_width = 1536;  // white.ddsの実サイズ。DrawRect側のsize指定はスケールで別途制御するため
-	initData.m_height = 864;  // ここは「1枚のテクスチャの原寸」を渡すだけでよい。
+	// パスは"Assets/..."起点("Game/"無し)。HexGridRenderer::InitShaders()の
+	// LoadVS("Assets/shader/hexGrid.fx",...)、FontEngine::Init()のspritefontパスと同じ規約
+	// (実行時カレントディレクトリがGame/である前提)。実機確認済み(§1)。
+	initData.m_ddsFilePath[0] = "Assets/spriteData/color/white.dds";
+	initData.m_fxFilePath = "Assets/shader/sprite.fx";
+	initData.m_width = 32;  // white.ddsの実サイズ(texconvで32x32へリサイズ済み、§1参照)。
+	initData.m_height = 32; // DrawRect側のsize指定はスケールで別途制御するため、ここは原寸を渡すだけでよい。
 	initData.m_alphaBlendMode = AlphaBlendMode_Trans; // 半透明(暗幕)・不透明(HP/XPバー)の両方をこれ1本で賄う(alpha=1なら実質不透明)。
 	m_sprite.Init(initData);
 }
 
 void UIRectRenderer::DrawRect(RenderContext& rc, const Vector2& pos, const Vector2& size, const Vector4& color, const Vector2& pivot)
 {
-	// size(ピクセル) / テクスチャ原寸 でスケールを求め、白テクスチャを目的の矩形サイズへ引き伸ばす。
-	Vector3 scale(size.x / 1536.0f, size.y / 864.0f, 1.0f);
+	// size(ピクセル) / テクスチャ原寸(32x32) でスケールを求め、白テクスチャを目的の矩形サイズへ引き伸ばす。
+	Vector3 scale(size.x / 32.0f, size.y / 32.0f, 1.0f);
 	m_sprite.Update(Vector3(pos.x, pos.y, 0.0f), Quaternion::Identity, scale, pivot);
 	m_sprite.SetMulColor(color);
 	m_sprite.Draw(rc);
 }
 ```
 
-- ファイルパスの正確な指定方法(相対パス基準、`Assets/spriteData/...`か`Game/Assets/...`か)は、
-  既存の`Texture`/`ModelRender`初期化コードの実例(例: `UnitModelDisplay.cpp`のtkmパス指定)に
-  倣うこと。実装フェーズの最初に`white.dds`単体の読み込みで実機確認してから進める(§1参照)。
-- `Quaternion::Identity`が無い場合は既存コード(`Camera.h`等)の回転無し表現に合わせる。
+- ファイルパスは`HexGridRenderer::InitShaders()`(`Assets/shader/hexGrid.fx`)と同じ`"Assets/..."`
+  起点(`Game/`無し)で確認済み。それでも実装フェーズの最初に`white.dds`単体の読み込みで
+  実機確認してから進める(§1参照、環境差異の最終確認として)。
+- `Quaternion::Identity`は`math/Vector.h`に静的メンバとして存在することを確認済み。
 
 ## 4. `Game.h` / `Game.cpp` の変更
 
@@ -170,38 +177,49 @@ void UIRectRenderer::DrawRect(RenderContext& rc, const Vector2& pos, const Vecto
 
 ## 6. スキルゲージバーの新規表示
 
+[レビュー是正1・3] `feature/item-passive-effects`のmainマージ後にrebase済み(衝突なし)。
+以下は**rebase後の実ファイルを読み直して確定した**内容(旧版から行番号・詳細を更新)。
+
 ### 6-1. `CombatEvent`/`CombatEngine`への最小追加
 
-- `CombatEventType`に`GaugeChange`を1つ追加(`Game/CombatEvent.h`)。
+- `CombatEventType`(`Game/CombatEvent.h`)は現在
+  `Move, NormalAttack, SkillAttack, SplashDamage, Heal, Shield, ShieldAbsorb, Burn, Death, Warning`
+  (`Burn`はitem-passive-effectsで追加済み)。**`GaugeChange`を`Burn`の直後・`Death`の前に追加**する
+  (enumは明示値を持たないため追加位置自体に競合は無いが、意味的なまとまりでこの位置にする)。
 - 意味: **自己参照イベント**。「`actorOwner`/`actorName`/`actorIndex`のユニットの現在ゲージ値が
   `afterValue`になった」。新しい構造体フィールドは追加しない(既存フィールドの意味を転用するだけ)。
   `targetOwner`/`targetIndex`等は未使用(Heal/Shield/Warningと同じ扱い)。
-- 発行箇所: `Game/CombatEngine.h`の`PerformAction()`(現行174-202行目)。
-  - `attacker.normalAttackCount++`(通常攻撃時)の直後 → attacker用`GaugeChange`
+- 発行箇所: `Game/CombatEngine.h`の`PerformAction()`(rebase後は**179-207行目**、item-passiveの
+  追加分だけ以前の調査時(174-202行目)より5行下にずれている)。
+  - `attacker.normalAttackCount++`(202行目、通常攻撃時)の直後 → attacker用`GaugeChange`
     (`afterValue = attacker.normalAttackCount + attacker.receivedAttackCount`)を`outEvents`へpush。
-  - `willUseSkill`で`normalAttackCount = 0; receivedAttackCount = 0;`にリセットした直後 →
-    attacker用`GaugeChange`(`afterValue = 0`)をpush(ゲージが空になったことを再生側に伝える)。
-  - `target.receivedAttackCount++`の直後 → target用`GaugeChange`
+  - `willUseSkill`で`normalAttackCount = 0; receivedAttackCount = 0;`(196-197行目)にリセットした
+    直後 → attacker用`GaugeChange`(`afterValue = 0`)をpush(ゲージが空になったことを再生側に伝える)。
+  - `target.receivedAttackCount++`(206行目)の直後 → target用`GaugeChange`
     (`afterValue = target.normalAttackCount + target.receivedAttackCount`)をpush。
-  - `time`は同じ関数呼び出し内で発生する他のイベント(NormalAttack/SkillAttack等)と同じ
-    `attacker.nextActionTime`(既存コードが使っている時刻)を使う想定。既存イベント発行の並び・
-    時刻設定パターンをそのまま踏襲すること(実装フェーズで`NormalAttack()`/`UseSkill()`関数内の
-    既存イベントpush処理を確認して合わせる)。
-- `Game/CombatLogPrinter.h`のswitchに`case CombatEventType::GaugeChange: break;`を追加
+  - `time`の設定パターンを確定済み: `NormalAttack()`(416行目〜)・`TickBurnsForBoard()`
+    (item-passive追加分)いずれも`e.time = m_currentTime;`(`CombatEngine`のメンバ)を使っている。
+    `GaugeChange`イベントも同様に`e.time = m_currentTime;`をそのまま使えばよい
+    (旧版で「未確認」としていた懸念点はこれで解消)。
+- `Game/CombatLogPrinter.h`の`switch(event.type)`に`case CombatEventType::GaugeChange: break;`を
+  `case CombatEventType::Burn:`(89行目)と`case CombatEventType::Death:`(97行目)の間に追加
   (頻度が高くログが埋まるため出力はしない)。
 
 ### 6-2. `CombatPlayback`への追加
 
-- `UnitView`に`int displayGauge = 0;`と`int skillThreshold = 1;`を追加(`CombatPlayback.h`)。
-- `Begin()`内、`UnitView`初期化時(`displayHP`をcurrentHPから初期化している箇所と同じ並び)で:
-  - `displayGauge = unit.normalAttackCount + unit.receivedAttackCount;`
+- `UnitView`(`CombatPlayback.h`)に`int displayGauge = 0;`と`int skillThreshold = 1;`を追加。
+- `CombatPlayback.cpp`の匿名名前空間`MakeView()`(14-31行目、`displayHP`をmaxHPから初期化している
+  箇所と同じ関数)で:
+  - `v.displayGauge = unit.normalAttackCount + unit.receivedAttackCount;`
     (**ラウンドをまたいだゲージの持ち越し有無という既存仕様には立ち入らず、渡されたUnitInstanceの
-    実際の値をそのまま表示初期値にする**。displayHPをcurrentHPから初期化するのと同じ扱い)。
-  - `skillThreshold = max(1, unit.def->skillThreshold + unit.bonusSkillThreshold);`
+    実際の値をそのまま表示初期値にする**。displayHPをmaxHPから初期化する隣で同様に扱う)。
+  - `v.skillThreshold = max(1, unit.def->skillThreshold + unit.bonusSkillThreshold);`
     (`CombatEngine::GetEffectiveSkillThreshold`と同じ式。式自体は2行なので複製で十分、
     CombatEngineへの依存を増やさない)。
-- `ApplyEvent()`に`case CombatEventType::GaugeChange:`を追加し、
-  `ResolveActor(ev)->displayGauge = ev.afterValue;`(自己参照イベントなので対象はactor側のみ)。
+- `ApplyEvent()`(113-163行目)の`switch(ev.type)`に`case CombatEventType::GaugeChange:`を追加し、
+  `if (UnitView* v = ResolveActor(ev)) { v->displayGauge = ev.afterValue; }`
+  (自己参照イベントなので対象はactor側のみ。`NormalAttack`等が`ResolveTarget`を使うブロックとは別に、
+  `Heal`/`Shield`と同じ`ResolveActor`パターンに倣う)。
 
 ### 6-3. `BoardUIRenderer`側の表示
 
@@ -251,18 +269,13 @@ void UIRectRenderer::DrawRect(RenderContext& rc, const Vector2& pos, const Vecto
 
 ## 10. 未解決の懸念点・実装フェーズで確認すべきこと
 
-1. **`Sprite::Init`のファイルパス基準ディレクトリ**: `m_ddsFilePath`/`m_fxFilePath`が
-   実行時カレントディレクトリ相対かプロジェクトルート相対か未確認(既存の`ModelRender`/`tkm`系の
-   パス指定コードを参考に、実機で最初に確認すること)。
+1. ~~`Sprite::Init`のファイルパス基準ディレクトリ~~ → §1の変換作業と合わせて実装フェーズの
+   最初のステップとして実機確認する(white.dds単体を読み込んで白い矩形が出るかで検証)。
 2. **HPバー/スキルゲージバーの正確なピクセルサイズ・オフセット**: §5・§6-3の数値は初期値の目安。
    3Dワールド座標をUI射影した`bar.uiPos`はカメラ距離によって画面上の見かけサイズが変わらない
    (UI空間に射影済みのため)ので大枠は安定するはずだが、既存のASCIIバー(現行`kBarValueScale=0.44`
    相当の文字サイズ)と見比べて違和感が無いよう実機で微調整すること。
-3. **`GaugeChange`イベントの`time`値の厳密な設定方法**: §6-1に書いた通り、既存の
-   `NormalAttack()`/`UseSkill()`関数内でのイベントpushパターン(`CombatEvent`の`time`フィールドに
-   何を入れているか)を実装フェーズで確認し、それに合わせること(本doc執筆時点では
-   `PerformAction()`の呼び出し元コンテキストのみ確認し、`NormalAttack()`/`UseSkill()`本体の
-   実装までは読み切れていない)。
+3. ~~`GaugeChange`イベントの`time`値の厳密な設定方法~~ → §6-1で解消済み(`m_currentTime`を使う)。
 4. **`white.dds`の実行時パス配置**: ビルド出力(`Game/x64/Debug/`)からの相対アクセスになるため、
    既存のAssets参照パターン(プロジェクトルート相対で動いている)に倣えば動くはずだが、
    §1の「white.dds単体読み込みの実機確認」で必ず検証すること。

@@ -40,6 +40,7 @@ bool Game::Start()
 	m_traitDatabase.Init();
 	m_itemDatabase.Init();
 	m_hexGridRenderer.Init();
+	m_uiRectRenderer.Init();
 
 	// 盤面(ヘックスグリッド q:0-8, r:0-2、HexGridRenderer::CalcTileCenterの座標系で
 	// 概ねX:±430, Z:±125に収まる)全体が、自陣・中立・敵陣とも余裕を持って画角に入るよう、
@@ -879,7 +880,7 @@ void Game::Render(RenderContext& rc)
 	// (準備フェーズ限定のShopUIRendererのヘッダー行とは別に、右上へ常設する)。
 	{
 		const Player& player = m_gameState.players[0];
-		m_playerStatusUI.Draw(rc, player, m_levelSystem.XPForNextLevel(player.level));
+		m_playerStatusUI.Draw(rc, player, m_levelSystem.XPForNextLevel(player.level), m_uiRectRenderer);
 	}
 
 	// フェーズを問わず常時、画面右上にラウンド数・戦績(連敗カウント)を表示する。
@@ -917,7 +918,7 @@ void Game::Render(RenderContext& rc)
 	// 戦闘の再生中は、各ユニットの頭上にHPバーを表示する。
 	else if (m_gameState.currentPhase == Phase::Combat && m_combatSimDone)
 	{
-		m_boardUI.DrawCombat(rc, m_combatPlayback);
+		m_boardUI.DrawCombat(rc, m_combatPlayback, m_uiRectRenderer);
 	}
 	// ラウンド結果の一言表示。盤面(直前の配置に戻したユニット)を背景にしたまま重ねて表示する。
 	else if (m_gameState.currentPhase == Phase::Result)
@@ -927,10 +928,10 @@ void Game::Render(RenderContext& rc)
 	// ゲームオーバー/ゲームクリア画面。こちらも盤面を背景に残したまま重ねて表示する。
 	else if (m_gameState.currentPhase == Phase::GameOver)
 	{
-		m_resultUI.DrawGameOver(rc, m_gameState.roundNumber, GameState::kTotalRounds, g_gameTime->GetFrameDeltaTime());
+		m_resultUI.DrawGameOver(rc, m_gameState.roundNumber, GameState::kTotalRounds, g_gameTime->GetFrameDeltaTime(), m_uiRectRenderer);
 	}
 	else if (m_gameState.currentPhase == Phase::Victory)
 	{
-		m_resultUI.DrawVictory(rc, GameState::kTotalRounds, g_gameTime->GetFrameDeltaTime());
+		m_resultUI.DrawVictory(rc, GameState::kTotalRounds, g_gameTime->GetFrameDeltaTime(), m_uiRectRenderer);
 	}
 }

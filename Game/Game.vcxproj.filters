@@ -66,6 +66,9 @@
     <ClCompile Include="RoundRecordUIRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="UIRectRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="TraitPanelUIRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -134,6 +137,9 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="RoundRecordUIRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UIRectRenderer.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="TraitPanelUIRenderer.h">

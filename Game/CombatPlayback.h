@@ -30,6 +30,8 @@ public:
 		int displayHP = 0;       // 再生クロックに応じて増減する表示用HP。
 		int maxHP = 1;           // バーの割合計算用。
 		int displayShield = 0;   // 表示用シールド量。
+		int displayGauge = 0;    // 再生クロックに応じて増減する表示用の必殺技ゲージ。
+		int skillThreshold = 1;  // ゲージが満ちる閾値(バーの割合計算用、戦闘中は不変)。
 		bool alive = true;
 		bool isEnemy = false;
 	};
