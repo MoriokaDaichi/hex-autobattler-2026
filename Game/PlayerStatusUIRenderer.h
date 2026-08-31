@@ -31,5 +31,7 @@ private:
 	int m_level = 0;
 	int m_xp = 0;
 	int m_xpForNextLevel = 0;
+	int m_boardCount = 0;    // 盤面に配置済みのユニット数。
+	int m_maxBoardSize = 0;  // 現在のレベルで置ける上限(Player::GetMaxBoardSize)。
 	bool m_hasData = false;
 };

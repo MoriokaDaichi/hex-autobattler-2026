@@ -27,5 +27,7 @@ private:
 	int m_totalRounds = 1;
 	int m_lossCount = 0;
 	int m_maxLosses = 1;
+	int m_winStreak = 0;      // 連勝数(Player由来、EconomySystemが更新)。lossStreakと排他。
+	int m_lossStreak = 0;     // 連敗数(Player由来)。m_lossCount(現在の敵への敗北数)とは別概念。
 	bool m_hasData = false;
 };

@@ -30,10 +30,16 @@ namespace
 	const float kTitleScale = 0.56f;
 	const float kLineScale = 0.48f;
 
+	// 連勝/連敗ストリークは行を増やさず「残り N ラウンド」行と同じ y に x をずらして併記する
+	// (4行目を足すと下段の ItemInventoryUIRenderer の "ITEMS" と縦位置が重なるため)。
+	const float kStreakCol = 210.0f;
+
 	const Vector2 kTopLeftPivot(0.0f, 1.0f); // 実質的な左上アンカー(BoardUIRendererと同じ扱い)。
 
 	const Vector4 kTitleColor(0.9f, 0.9f, 0.95f, 1.0f);
 	const Vector4 kNormalColor(0.82f, 0.85f, 0.9f, 1.0f);
+	const Vector4 kWinStreakColor(0.45f, 0.95f, 0.5f, 1.0f);   // 連勝中: 緑。
+	const Vector4 kLossStreakColor(0.98f, 0.85f, 0.3f, 1.0f);  // 連敗中: 黄。
 
 	// 連敗数に応じた警告色。0は通常色、kMaxLosses-1(あと1敗でゲームオーバー)は赤、その間は黄。
 	Vector4 LossColor(int lossCount, int maxLosses)
@@ -53,6 +59,14 @@ void RoundRecordUIRenderer::Draw(RenderContext& rc, const GameState& gameState)
 
 	m_lossCount = gameState.lossCount;
 	m_maxLosses = GameState::kMaxLossesPerEnemy;
+
+	// ストリークは Player 由来(EconomySystemが更新)。players[0]が唯一の人間プレイヤー。
+	if (!gameState.players.empty())
+	{
+		m_winStreak = gameState.players[0].winStreak;
+		m_lossStreak = gameState.players[0].lossStreak;
+	}
+
 	m_hasData = true;
 
 	g_renderingEngine->AddRenderObject(this);
@@ -75,6 +89,28 @@ void RoundRecordUIRenderer::OnRender2D(RenderContext& rc)
 	wchar_t remainLine[64];
 	swprintf_s(remainLine, L"残り %d ラウンド", remaining);
 	m_font.Draw(remainLine, Vector2(kX, kTopY - kStepY), kNormalColor, 0.0f, kLineScale, kTopLeftPivot);
+
+	// 連勝/連敗ストリーク(残り行と同じyに併記)。winStreak/lossStreakは排他(片方が0)。
+	// 下の「連敗 N / M」行(現在の敵への敗北数=ゲームオーバー猶予)と混同しないよう、
+	// 数字を先に置く別表記("3連勝" / "2連敗")にする。
+	wchar_t streakLine[48];
+	Vector4 streakColor;
+	if (m_winStreak > 0)
+	{
+		swprintf_s(streakLine, L"%d連勝中", m_winStreak);
+		streakColor = kWinStreakColor;
+	}
+	else if (m_lossStreak > 0)
+	{
+		swprintf_s(streakLine, L"%d連敗中", m_lossStreak);
+		streakColor = kLossStreakColor;
+	}
+	else
+	{
+		swprintf_s(streakLine, L"連勝連敗なし");
+		streakColor = kNormalColor;
+	}
+	m_font.Draw(streakLine, Vector2(kX + kStreakCol, kTopY - kStepY), streakColor, 0.0f, kLineScale, kTopLeftPivot);
 
 	wchar_t lossLine[64];
 	swprintf_s(lossLine, L"連敗 %d / %d", m_lossCount, m_maxLosses);
