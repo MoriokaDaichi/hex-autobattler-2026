@@ -53,6 +53,7 @@ private:
 	GameState m_gameState;
 	UnitDatabase m_unitDatabase;
 	std::vector<const UnitDef*> m_currentShop;
+	bool m_shopLocked = false; // ショップのロック。true の間はラウンドを跨いでも m_currentShop を再抽選しない(手動リロールは可)。
 	ShopSystem m_shopSystem;
 	CombatEngine m_combatEngine;
 	TraitDatabase m_traitDatabase;

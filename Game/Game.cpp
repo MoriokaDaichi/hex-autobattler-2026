@@ -86,6 +86,7 @@ void Game::InitializeNewRun()
 	m_gameState.lossCount = 0;
 
 	m_currentShop.clear();
+	m_shopLocked = false;
 	m_heldUnclaimedIndex = -1;
 	m_heldBoardHexValid = false;
 	m_combatSimDone = false;
@@ -121,6 +122,7 @@ void Game::Update()
 			if (m_saveSystem.Load(m_gameState, m_unitDatabase, m_itemDatabase))
 			{
 				m_currentShop.clear();
+				m_shopLocked = false; // ロック状態はセーブ対象外。ロード時は必ず解除で開始する。
 				m_heldUnclaimedIndex = -1;
 				m_gameState.currentPhase = Phase::Preparation;
 				OutputDebugString(L"[Load] save data loaded, resuming Preparation.\n");
@@ -318,7 +320,11 @@ void Game::Update()
 		// Bボタンで次のフェーズに進む。
 		if (g_pad[0]->IsTrigger(enButtonB))
 		{
-			m_currentShop.clear();
+			// ロック中はショップを維持する(次の準備フェーズで空でないため自動リロールされない)。
+			if (!m_shopLocked)
+			{
+				m_currentShop.clear();
+			}
 			m_heldUnclaimedIndex = -1; // 手に持ったままのアイテムは戦闘に持ち越さず、一覧へ戻す。
 			m_heldBoardHexValid = false; // 盤面内移動の選択も戦闘に持ち越さない。
 			m_gameState.currentPhase = Phase::Combat;
@@ -419,6 +425,18 @@ void Game::Update()
 					m_shopUI.PushFeedback(L"配置できません (自陣 q0-2 のみ / 盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
 				}
 			}
+		}
+
+		// Startボタンでショップのロックをトグルする。
+		// ロック中はラウンドを跨いでもショップの5枠が維持される(上の enButtonB での自動クリアをスキップ)。
+		// 手動リロール(Y)はロック中も可能で、その結果が新たなロック対象になる。
+		if (g_pad[0]->IsTrigger(enButtonStart))
+		{
+			m_shopLocked = !m_shopLocked;
+			m_shopUI.PushFeedback(
+				m_shopLocked ? L"ショップをロックしました (ラウンドを跨いで維持)" : L"ショップのロックを解除しました",
+				ShopUIRenderer::FeedbackLevel::Info);
+			OutputDebugString(m_shopLocked ? L"[Shop] locked\n" : L"[Shop] unlocked\n");
 		}
 
 		// Yボタンで、ゴールドを払ってショップをリロールする。
@@ -883,7 +901,8 @@ void Game::Render(RenderContext& rc)
 			kRerollCost,
 			LevelSystem::kBuyXPCost,
 			shopFocused ? shopCursorIndex : -1,
-			shopFocused);
+			shopFocused,
+			m_shopLocked);
 
 		m_boardUI.DrawPreparation(rc, player);
 

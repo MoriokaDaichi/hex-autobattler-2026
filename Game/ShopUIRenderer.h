@@ -35,6 +35,7 @@ public:
 	/// </summary>
 	/// <param name="shopCursorIndex">ショップ一覧上のカーソル位置(CursorSelectionSystem由来)。</param>
 	/// <param name="shopFocused">今カーソルのフォーカスがショップに当たっているか(当たっている枠を強調表示する)。</param>
+	/// <param name="shopLocked">ショップがロックされているか(ヘッダー行に[LOCKED]を表示し金色にする)。</param>
 	void Draw(
 		RenderContext& rc,
 		const std::vector<const UnitDef*>& shop,
@@ -43,7 +44,8 @@ public:
 		int rerollCost,
 		int buyXpCost,
 		int shopCursorIndex,
-		bool shopFocused);
+		bool shopFocused,
+		bool shopLocked);
 
 	/// <summary>
 	/// 直近の操作結果を1行フィードバックとして表示する。一定時間表示したのち自動的に消える。
@@ -83,6 +85,7 @@ private:
 	int m_buyXpCost = 0;
 	int m_cursorIndex = -1;
 	bool m_shopFocused = false;
+	bool m_shopLocked = false;
 	bool m_hasData = false;
 
 	std::wstring m_feedbackText;
