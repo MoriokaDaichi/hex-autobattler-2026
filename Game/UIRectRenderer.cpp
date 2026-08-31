@@ -7,7 +7,8 @@ namespace
 	// 背景/HP前景/シールド/ゲージ背景/ゲージ前景 の最大5枚 + XPバー2枚 + 暗幕1枚)を
 	// 見込んだ事前確保数。描画中(OnRender2D)の生成を避けるため多めに取る。
 	// これを超えた場合は AcquireSprite() が実行時に生成する(フォールバック)。
-	const size_t kPrewarmCount = 128;
+	// 最大盤面(両陣営ほぼ満杯 ≒ 20体 × 最大5枚 + XPバー2枚 + 暗幕1枚 ≒ 103枚)に余裕を持たせた値。
+	const size_t kPrewarmCount = 160;
 
 	void InitOneSprite(Sprite& sprite)
 	{
