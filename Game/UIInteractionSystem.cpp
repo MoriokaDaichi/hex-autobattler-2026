@@ -9,7 +9,7 @@ void UIInteractionSystem::Update(const UIHotRegionList& hotRegions)
 	m_hasRightClicked = false;
 
 	Vector2 uiPos;
-	if (!CursorSelectionSystem::ScreenToUISpace(g_mouse->GetPositionX(), g_mouse->GetPositionY(), uiPos))
+	if (!CursorSelectionSystem::ScreenToUISpace(uiPos))
 	{
 		return; // マウスがウィンドウ外。
 	}

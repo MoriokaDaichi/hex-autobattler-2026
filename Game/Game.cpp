@@ -170,8 +170,9 @@ void Game::Update()
 		// マウス: TitleStartButtonは「続きから」(hasSave時)/「開始」(hasSave無し時)の両方を兼ねる
 		// (BuildHotRegions()が状況に応じてどちらか一方だけを登録するため、Aボタンと1:1で対応する)。
 		UIHotRegion titleClick;
-		bool mouseClickedTitleStart = m_uiInteraction.GetLeftClicked(titleClick) && titleClick.kind == UIRegionKind::TitleStartButton;
-		bool mouseClickedTitleNewGame = m_uiInteraction.GetLeftClicked(titleClick) && titleClick.kind == UIRegionKind::TitleNewGameButton;
+		bool hasTitleClick = m_uiInteraction.GetLeftClicked(titleClick);
+		bool mouseClickedTitleStart = hasTitleClick && titleClick.kind == UIRegionKind::TitleStartButton;
+		bool mouseClickedTitleNewGame = hasTitleClick && titleClick.kind == UIRegionKind::TitleNewGameButton;
 
 		if (hasSave && (g_pad[0]->IsTrigger(enButtonA) || mouseClickedTitleStart))
 		{
@@ -267,11 +268,13 @@ void Game::Update()
 			OutputDebugString(saved ? L"[Save] wrote savedata.txt\n" : L"[Save] FAILED to write savedata.txt\n");
 		}
 
-		// Aボタン(またはマウス左クリック/Enter/Space)。フォーカスと「アイテムを手に持っているか」で
-		// 意味が変わる:
+		// Aボタン。フォーカスと「アイテムを手に持っているか」で意味が変わる:
 		//  - Itemsフォーカス中: カーソルのアイテムを手に持つ / もう一度押すと戻す。
 		//  - アイテムを手に持った状態でBench/Boardフォーカス中: 選択中のユニットへ装備を確定する。
 		//  - それ以外(ショップフォーカス中はカーソルのユニット、他は0番目): 従来通りユニットを買う。
+		// マウス左クリックによる同等の操作は、この直後の専用ブロック(--- マウス左クリック ---)で
+		// 別途扱う(ゲームパッドの暗黙フォーカス前提とマウスの明示クリック対象は前提が異なるため、
+		// この分岐へ合成しない。docs/tasks/ui-mouse-cards/plan.md §2-2参照)。
 		if (g_pad[0]->IsTrigger(enButtonA))
 		{
 			Player& player = m_gameState.players[0];

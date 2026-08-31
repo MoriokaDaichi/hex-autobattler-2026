@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "CursorSelectionSystem.h"
 #include "HexGridRenderer.h"
+#include "system/system.h" // g_hWnd(実際のウィンドウクライアント矩形を取得するため)。
 
 namespace
 {
@@ -123,19 +124,44 @@ void CursorSelectionSystem::UpdateHexCursor()
 	}
 }
 
-bool CursorSelectionSystem::TryMouseToHex(HexCoord& outHex) const
+bool CursorSelectionSystem::GetNormalizedMousePosition(float& outU, float& outV)
 {
+	RECT clientRect;
+	if (!GetClientRect(g_hWnd, &clientRect)) {
+		return false;
+	}
+	int clientW = clientRect.right - clientRect.left;
+	int clientH = clientRect.bottom - clientRect.top;
+	if (clientW <= 0 || clientH <= 0) {
+		return false;
+	}
+
 	int mx = g_mouse->GetPositionX();
 	int my = g_mouse->GetPositionY();
-
-	if (mx < 0 || my < 0 || mx >= static_cast<int>(FRAME_BUFFER_W) || my >= static_cast<int>(FRAME_BUFFER_H)) {
+	if (mx < 0 || my < 0 || mx >= clientW || my >= clientH) {
 		// ウィンドウのクライアント領域外。
 		return false;
 	}
 
-	// スクリーン座標(左上原点、ピクセル) -> NDC(-1〜1、Yは上向き正)。
-	float ndcX = (static_cast<float>(mx) / FRAME_BUFFER_W) * 2.0f - 1.0f;
-	float ndcY = 1.0f - (static_cast<float>(my) / FRAME_BUFFER_H) * 2.0f;
+	outU = static_cast<float>(mx) / static_cast<float>(clientW);
+	outV = static_cast<float>(my) / static_cast<float>(clientH);
+	return true;
+}
+
+bool CursorSelectionSystem::TryMouseToHex(HexCoord& outHex) const
+{
+	// マウス位置を、実際のウィンドウクライアント矩形基準で0〜1に正規化する(DPIスケーリング等で
+	// クライアント領域の実ピクセル数がFRAME_BUFFER_W/Hと一致しない環境でも正しく動くようにするため。
+	// 以前はFRAME_BUFFER_W/Hで直接割っており、クライアント領域がそれと異なるサイズになる環境では
+	// マウス操作可能な範囲が画面の一部に縮小/拡大してしまっていた)。
+	float u, v;
+	if (!GetNormalizedMousePosition(u, v)) {
+		return false;
+	}
+
+	// 正規化座標(0〜1、左上原点) -> NDC(-1〜1、Yは上向き正)。
+	float ndcX = u * 2.0f - 1.0f;
+	float ndcY = 1.0f - v * 2.0f;
 
 	// このプロジェクトの数学ライブラリのMatrixには、パースペクティブ除算込みでVector3を
 	// 変換するヘルパーが無いため、Vector4で変換してwで除算する(TransformCoord相当)。
@@ -177,14 +203,18 @@ bool CursorSelectionSystem::GetHexCursor(HexCoord& outHex) const
 	return true;
 }
 
-bool CursorSelectionSystem::ScreenToUISpace(int mx, int my, Vector2& outUI)
+bool CursorSelectionSystem::ScreenToUISpace(Vector2& outUI)
 {
-	if (mx < 0 || my < 0 || mx >= static_cast<int>(FRAME_BUFFER_W) || my >= static_cast<int>(FRAME_BUFFER_H)) {
-		// ウィンドウのクライアント領域外(TryMouseToHexと同じ境界チェック)。
+	// 実際のウィンドウクライアント矩形(GetClientRect)基準で正規化することで、DPIスケーリング等で
+	// クライアント領域の実ピクセル数がUI_SPACE_WIDTH/HEIGHT(1920x1080)と一致しない環境でも
+	// UI_SPACEへ正しく写像できる(以前はFRAME_BUFFER_W/Hで直接割っており、クライアント領域が
+	// それと異なるサイズになる環境ではマウス操作可能な範囲が画面の一部に縮小/拡大してしまっていた)。
+	float u, v;
+	if (!GetNormalizedMousePosition(u, v)) {
 		return false;
 	}
 
-	outUI.x = static_cast<float>(mx) - static_cast<float>(UI_SPACE_WIDTH) * 0.5f;
-	outUI.y = static_cast<float>(UI_SPACE_HEIGHT) * 0.5f - static_cast<float>(my);
+	outUI.x = u * static_cast<float>(UI_SPACE_WIDTH) - static_cast<float>(UI_SPACE_WIDTH) * 0.5f;
+	outUI.y = static_cast<float>(UI_SPACE_HEIGHT) * 0.5f - v * static_cast<float>(UI_SPACE_HEIGHT);
 	return true;
 }

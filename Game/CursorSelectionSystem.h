@@ -55,19 +55,26 @@ public:
 	bool GetHexCursor(HexCoord& outHex) const;
 
 	/// <summary>
-	/// マウスのスクリーン座標(ウィンドウクライアント座標、左上原点、ピクセル)をUI_SPACE座標
-	/// (1920x1080、中央原点・y上向き。Font/UIRectRendererと共通)へ変換する。
-	/// UI_SPACE_WIDTH/HEIGHTはFRAME_BUFFER_W/Hと完全に一致しているため単純な平行移動でよい
-	/// (盤面ピッキング用のTryMouseToHexとは別経路。3D射影を経由しない)。
+	/// 現在のマウス位置をUI_SPACE座標(1920x1080、中央原点・y上向き。Font/UIRectRendererと共通)へ
+	/// 変換する。実際のウィンドウクライアント矩形(GetClientRect)を基準に正規化するため、
+	/// DPIスケーリング等でクライアント領域の実ピクセル数がUI_SPACE_WIDTH/HEIGHT(1920x1080)と
+	/// 一致しない環境でも正しく動く(TryMouseToHexと同じ考え方。3D射影を経由しない点のみ異なる)。
 	/// ウィンドウのクライアント領域外ならfalseを返す。
 	/// </summary>
-	static bool ScreenToUISpace(int mx, int my, Vector2& outUI);
+	static bool ScreenToUISpace(Vector2& outUI);
 
 private:
 	void UpdateFocusSwitch();
 	void UpdateListCursor();
 	void UpdateHexCursor();
 	bool TryMouseToHex(HexCoord& outHex) const;
+
+	/// <summary>
+	/// 現在のマウス位置を、実際のウィンドウクライアント矩形(GetClientRect)基準で
+	/// 0〜1に正規化して返す(左上原点、右方向・下方向が正)。クライアント領域外や
+	/// GetClientRect失敗時はfalseを返す。TryMouseToHex/ScreenToUISpaceの共通処理。
+	/// </summary>
+	static bool GetNormalizedMousePosition(float& outU, float& outV);
 
 	InputFocus m_focus = InputFocus::Shop;
 	int m_listCursorIndex = 0;
