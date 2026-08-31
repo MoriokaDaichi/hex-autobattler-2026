@@ -865,6 +865,10 @@ std::vector<EnemyStage> Game::BuildEnemyStages()
 
 void Game::Render(RenderContext& rc)
 {
+	// 塗り矩形UIヘルパーのプール使用カーソルを毎フレーム先頭で戻す
+	// (これを呼ばないとDrawRect呼び出しぶんSpriteが際限なく増える)。
+	m_uiRectRenderer.BeginFrame();
+
 	// タイトル画面中は盤面・各種HUDを一切出さず、タイトル文字列のみを表示する。
 	if (m_gameState.currentPhase == Phase::Title)
 	{

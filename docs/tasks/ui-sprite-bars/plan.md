@@ -20,10 +20,17 @@
    本タスクでは**`white.png`のみ使用**する。他8色は`受け入れ条件`通りコミットしてよいが未使用。
 4. **既存の汎用スプライトシェーダーがそのまま使える。** `Game/Assets/shader/sprite.fx`
    (`VSMain`/`PSMain`、`SpriteInitData`のデフォルトエントリポイント名と一致)。新規シェーダー作成は不要。
-5. **`Sprite`は1インスタンスを使い回してよい。** `Update(pos,rot,scale,pivot)`→`SetMulColor(color)`→
-   `Draw(rc)`を1フレーム内で何度呼んでも、`Draw()`のたびに定数バッファへ同期コピーしてから
-   `DrawIndexed`を発行する(即時描画に近い、`Font`を1インスタンスで使い回すのと同じ考え方)。
-   矩形ごとに`Sprite`を新規生成する必要は無い。
+5. **[訂正] `Sprite`は1インスタンスを1フレームに複数回Drawできない。** 当初「1個を使い回せる」と
+   想定したが誤り。`Sprite::Draw()`は毎回`m_constantBufferGPU.CopyToVRAM()`してから`DrawIndexed`を
+   コマンドリストに記録するだけで、`ConstantBuffer::CopyToVRAM`は1フレーム不変の単一領域へmemcpyする
+   (描画コールごとのリング確保が無い)。よってフレーム内の全`DrawIndexed`が同じCBVを参照し、
+   **最後の`Draw`のMVP/乗算カラーで全矩形が描かれる=実質1枚しか出ない**。
+   エンジン側も`RenderingEngine::m_mainSprite`/`m_2DSprite`や各ポストエフェクトは描画1回につき専用
+   `Sprite`メンバを1個、`CalcSceneLuminance`は`Sprite m_calcAvgSprites[N]`配列で対応している。
+   → `UIRectRenderer`は**`Sprite`のプール**(`std::vector<std::unique_ptr<Sprite>>`)を持ち、
+   `DrawRect`呼び出しごとに別インスタンスを割り当てる。`Game::Render()`冒頭で`BeginFrame()`を
+   呼んで使用カーソルを0に戻し、プールはフレーム跨ぎで再利用する。`Init()`でピーク見込み(128)を
+   事前確保し、描画中の生成を避ける。
 6. **`Sprite`の`pivot`はFontと違い本物の正規化ピボット。** `Sprite::Update()`
    (`Sprite.cpp:218`)は`pivot`(0〜1)を`m_size`(初期化時の幅高さ)に対する実際の比率として
    平行移動に変換している。Fontの「生ピクセルオフセットもどき」ピボットとは別物で、
@@ -67,7 +74,7 @@ Set-Location "Game\Assets\spriteData\color"
 
 | ファイル | 役割 |
 |---|---|
-| `Game/UIRectRenderer.h` / `.cpp` | 単色矩形(塗り/半透明)を描く共通ヘルパー。`Sprite`を1個ラップする。`Game`が1個所有し、利用する各UIRendererへ参照を渡す。 |
+| `Game/UIRectRenderer.h` / `.cpp` | 単色矩形(塗り/半透明)を描く共通ヘルパー。`Sprite`のプール(`vector<unique_ptr<Sprite>>`)を持ち、`DrawRect`呼び出しごとに1個割り当てる(§0-5訂正参照)。`Game`が1個所有し`Game::Render()`冒頭で`BeginFrame()`、利用する各UIRendererへ参照を渡す。 |
 
 `Game/Game.vcxproj`と`.filters`に追加(フィルタ`Core`)。**IRendererは実装しない**(既存Rendererの
 `OnRender2D`内から直接呼ばれるヘルパーであり、自身が`AddRenderObject`されるものではない)。
