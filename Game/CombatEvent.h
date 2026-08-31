@@ -14,6 +14,7 @@ enum class CombatEventType
 	Heal,         // 自己回復(ドレイン)。
 	Shield,       // シールド付与。
 	ShieldAbsorb, // シールドによるダメージ吸収。
+	Burn,         // 火傷(継続ダメージ)の1刻み。防御・シールドを貫通する確定ダメージ。
 	Death,        // 撃破。
 	Warning,      // その他の警告(最大ターン到達など)。
 };

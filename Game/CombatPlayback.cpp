@@ -117,6 +117,7 @@ void CombatPlayback::ApplyEvent(const CombatEvent& ev)
 	case CombatEventType::NormalAttack:
 	case CombatEventType::SkillAttack:
 	case CombatEventType::SplashDamage:
+	case CombatEventType::Burn:
 		if (UnitView* v = ResolveTarget(ev))
 		{
 			v->displayHP = ev.afterValue < 0 ? 0 : ev.afterValue;

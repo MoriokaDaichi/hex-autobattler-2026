@@ -168,6 +168,9 @@ public:
 		furiousEdge.name = "FuriousEdge"; // 激情の刃(Swift+Power)。攻撃力・攻撃速度ともに底上げする物理アタッカー向け。
 		furiousEdge.category = ItemCategory::Completed;
 		furiousEdge.effects = { { StatEffectType::AttackFlat, 15.0f }, { StatEffectType::AttackSpeedPercent, 20.0f } };
+		// パッシブ: 通常攻撃を当てた敵へ火傷(継続ダメージ)を付与する。1刻み40ダメージ×3回、1.0秒間隔。
+		// 火傷は防御・シールドを貫通する確定ダメージ(CombatEngine::TickBurnsForBoard)。
+		furiousEdge.passives = { { PassiveEffectType::OnHitBurn, 40, 3, 1.0f } };
 		m_itemDefs.push_back(furiousEdge);
 
 		ItemDef tirelessHeart;

@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <climits>
 #include <vector>
+#include <algorithm>
 #include "Player.h"
 #include "AttackType.h"
 #include "CombatEvent.h"
@@ -92,10 +93,10 @@ public:
 		const int maxIterations = 4000; // 1回の行動を1イテレーションとして数える安全装置。
 		const float kTimeEpsilon = 0.0001f; // 浮動小数点の誤差を吸収するための微小値。
 
-		// 前回の戦闘の値が残らないよう、内部時計と各ユニットの行動予定時刻をリセットする。
+		// 前回の戦闘の値が残らないよう、内部時計と各ユニットの行動予定時刻・火傷をリセットする。
 		m_currentTime = 0.0f;
-		for (auto& unit : player.board) unit.nextActionTime = 0.0f;
-		for (auto& unit : enemy.board) unit.nextActionTime = 0.0f;
+		for (auto& unit : player.board) { unit.nextActionTime = 0.0f; unit.activeBurns.clear(); }
+		for (auto& unit : enemy.board) { unit.nextActionTime = 0.0f; unit.activeBurns.clear(); }
 
 		int iteration = 0;
 		while (!IsBoardWiped(player.board) && !IsBoardWiped(enemy.board) && iteration < maxIterations)
@@ -116,6 +117,10 @@ public:
 			if (bestTime >= 1e9f) break; // 通常はIsBoardWipedで先に抜けるはずだが、念のため。
 
 			m_currentTime = bestTime;
+
+			// このウェーブの時刻までに刻みが来ている火傷(継続ダメージ)を先に処理する。
+			ProcessDueBurns(player.board, player.name, enemy.board, enemy.name, outEvents);
+			if (IsBoardWiped(player.board) || IsBoardWiped(enemy.board)) break; // 火傷で決着したらここで抜ける。
 
 			// このウェーブ(=bestTime)に行動予定のユニットを、両陣営から1体ずつ交互に行動させる。
 			size_t maxBoardSize = (player.board.size() > enemy.board.size()) ? player.board.size() : enemy.board.size();
@@ -435,6 +440,129 @@ private:
 
 		RecordShieldAbsorb(target, targetOwner, targetIndex, shieldAbsorbed, outEvents);
 		CheckDeath(target, targetOwner, targetIndex, outEvents);
+
+		// 通常攻撃がヒットし対象が生存していれば、attackerのオンヒットパッシブ(火傷等)を適用する。
+		if (target.currentHP > 0)
+		{
+			TryApplyOnHitBurn(attacker, attackerOwner, actorIndex, target);
+		}
+	}
+
+	/// <summary>
+	/// attackerがOnHitBurnパッシブ(アイテム由来)を持っていれば、targetに火傷を付与/リフレッシュする。
+	/// 既に火傷がかかっている場合はスタックせず、残り回数を最大へ戻し(＝最後にヒットしてから
+	/// ticks刻み分だけ延長)、damagePerTickは高い方を採用する。
+	/// 刻みの周期(nextTickTime)はリフレッシュしない ── 毎秒の刻みを維持したまま持続時間だけ延ばす。
+	/// (周期までリセットすると、interval未満の間隔で殴り続けた場合に刻みが永久に先送りされてしまう)
+	/// </summary>
+	void TryApplyOnHitBurn(const UnitInstance& attacker, const std::string& attackerOwner, int actorIndex,
+		UnitInstance& target)
+	{
+		for (const ItemDef* item : attacker.items)
+		{
+			if (item == nullptr) continue;
+			for (const PassiveEffect& p : item->passives)
+			{
+				if (p.type != PassiveEffectType::OnHitBurn) continue;
+				if (p.magnitude <= 0 || p.ticks <= 0 || p.interval <= 0.0f) continue; // interval<=0はTick処理が無限ループするため弾く。
+
+				// 火傷は対象につき1インスタンスのみ(スタックさせない)。
+				ActiveBurn* existing = target.activeBurns.empty() ? nullptr : &target.activeBurns.front();
+				if (existing != nullptr)
+				{
+					existing->ticksRemaining = p.ticks; // 残り回数をリフレッシュ(周期nextTickTimeはそのまま)。
+					existing->interval = p.interval;
+					if (p.magnitude > existing->damagePerTick) existing->damagePerTick = p.magnitude;
+					existing->sourceOwner = attackerOwner;
+					existing->sourceName = attacker.def->name;
+					existing->sourceIndex = actorIndex;
+					// 何らかの理由で次刻みが過去に取り残されていたら、現在時刻基準へ引き上げる(暴走防止)。
+					if (existing->nextTickTime <= m_currentTime)
+					{
+						existing->nextTickTime = m_currentTime + p.interval;
+					}
+				}
+				else
+				{
+					ActiveBurn b;
+					b.damagePerTick = p.magnitude;
+					b.interval = p.interval;
+					b.nextTickTime = m_currentTime + p.interval;
+					b.ticksRemaining = p.ticks;
+					b.sourceOwner = attackerOwner;
+					b.sourceName = attacker.def->name;
+					b.sourceIndex = actorIndex;
+					target.activeBurns.push_back(b);
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// 現在時刻(m_currentTime)までに刻みの時刻が来ている火傷を、両陣営の生存ユニットについて処理する。
+	/// 火傷は防御力で軽減されず、シールドも貫通してcurrentHPに直接作用する(確定ダメージ)。
+	/// </summary>
+	void ProcessDueBurns(
+		std::vector<UnitInstance>& playerBoard, const std::string& playerOwner,
+		std::vector<UnitInstance>& enemyBoard, const std::string& enemyOwner,
+		std::vector<CombatEvent>& outEvents)
+	{
+		TickBurnsForBoard(playerBoard, playerOwner, outEvents);
+		TickBurnsForBoard(enemyBoard, enemyOwner, outEvents);
+	}
+
+	void TickBurnsForBoard(std::vector<UnitInstance>& board, const std::string& ownerName,
+		std::vector<CombatEvent>& outEvents)
+	{
+		const float kEps = 0.0001f;
+		for (size_t i = 0; i < board.size(); ++i)
+		{
+			UnitInstance& unit = board[i];
+			if (unit.currentHP <= 0)
+			{
+				unit.activeBurns.clear();
+				continue;
+			}
+
+			for (auto& burn : unit.activeBurns)
+			{
+				// 時刻が飛んでいる場合に備えて、来ている刻みをまとめて消化する。
+				while (burn.ticksRemaining > 0 && burn.nextTickTime <= m_currentTime + kEps)
+				{
+					int beforeHP = unit.currentHP;
+					unit.currentHP -= burn.damagePerTick; // 防御・シールドを通さない確定ダメージ。
+
+					CombatEvent e;
+					e.type = CombatEventType::Burn;
+					e.time = m_currentTime;
+					e.actorOwner = burn.sourceOwner;
+					e.actorName = burn.sourceName;
+					e.actorIndex = burn.sourceIndex;
+					e.targetOwner = ownerName;
+					e.targetName = unit.def->name;
+					e.targetIndex = (int)i;
+					e.amount = burn.damagePerTick;
+					e.beforeValue = beforeHP;
+					e.afterValue = unit.currentHP;
+					outEvents.push_back(e);
+
+					burn.ticksRemaining--;
+					burn.nextTickTime += burn.interval;
+
+					if (unit.currentHP <= 0)
+					{
+						CheckDeath(unit, ownerName, (int)i, outEvents);
+						break; // このユニットの火傷処理は終了。
+					}
+				}
+			}
+
+			// 使い切った火傷を除去する。
+			unit.activeBurns.erase(
+				std::remove_if(unit.activeBurns.begin(), unit.activeBurns.end(),
+					[](const ActiveBurn& b) { return b.ticksRemaining <= 0; }),
+				unit.activeBurns.end());
+		}
 	}
 
 	/// <summary>

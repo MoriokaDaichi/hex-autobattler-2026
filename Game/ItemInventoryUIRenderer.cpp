@@ -62,6 +62,16 @@ namespace
 			if (i > 0) s += L" ";
 			s += EffectShortText(def->effects[i]);
 		}
+		// パッシブ効果を持つアイテムは、末尾に短いタグを付ける(現状はオンヒット火傷のみ)。
+		for (const PassiveEffect& p : def->passives)
+		{
+			if (p.type == PassiveEffectType::OnHitBurn)
+			{
+				if (!s.empty()) s += L" ";
+				s += L"火傷";
+				break;
+			}
+		}
 		return s;
 	}
 }
