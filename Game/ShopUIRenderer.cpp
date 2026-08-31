@@ -77,7 +77,8 @@ void ShopUIRenderer::Draw(
 	int rerollCost,
 	int buyXpCost,
 	int shopCursorIndex,
-	bool shopFocused)
+	bool shopFocused,
+	bool shopLocked)
 {
 	m_slots.clear();
 	m_slots.reserve(shop.size());
@@ -113,6 +114,7 @@ void ShopUIRenderer::Draw(
 	m_buyXpCost = buyXpCost;
 	m_cursorIndex = shopCursorIndex;
 	m_shopFocused = shopFocused;
+	m_shopLocked = shopLocked;
 	m_hasData = !m_slots.empty();
 
 	if (!m_hasData)
@@ -161,11 +163,17 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 
 	// --- ヘッダー行(所持ゴールド / レベル・XP / 操作ガイド) ---
 	{
-		wchar_t buf[192];
+		wchar_t buf[224];
 		swprintf_s(buf,
-			L"SHOP   Gold %d   Lv %d (XP %d/%d)   [Y] Reroll -%dG   [RB1] BuyXP -%dG",
+			L"SHOP%ls   Gold %d   Lv %d (XP %d/%d)   [Y] Reroll -%dG   [RB1] BuyXP -%dG   [Start] Lock",
+			m_shopLocked ? L" [LOCKED]" : L"",
 			m_gold, m_level, m_xp, m_xpForNextLevel, m_rerollCost, m_buyXpCost);
-		m_font.Draw(buf, Vector2(kLeftX, kHeaderY), Vector4(1.0f, 1.0f, 1.0f, 1.0f), 0.0f, kHeaderScale, kTopLeftPivot);
+
+		// ロック中はヘッダーを金色にして状態が一目で分かるようにする。
+		Vector4 headerColor = m_shopLocked
+			? Vector4(1.00f, 0.80f, 0.25f, 1.0f)
+			: Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+		m_font.Draw(buf, Vector2(kLeftX, kHeaderY), headerColor, 0.0f, kHeaderScale, kTopLeftPivot);
 	}
 
 	// --- 5枠のカード(名前行 + 詳細行の2行) ---
