@@ -48,6 +48,9 @@
     <ClCompile Include="CursorSelectionSystem.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="UIInteractionSystem.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="UnitModelDisplay.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -119,6 +122,12 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="CursorSelectionSystem.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UIInteractionSystem.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UIHotRegion.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="UnitModelDisplay.h">

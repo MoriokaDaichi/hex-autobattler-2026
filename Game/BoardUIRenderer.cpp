@@ -88,6 +88,24 @@ void BoardUIRenderer::DrawPreparation(RenderContext& rc, const Player& player)
 	g_renderingEngine->AddRenderObject(this);
 }
 
+void BoardUIRenderer::BuildHotRegions(const Player& player, UIHotRegionList& out) const
+{
+	// ベンチ一覧の各行(kBenchX起点、kBenchStepY間隔で下へ伸びる。DrawPreparation()と同じ定数)。
+	for (size_t i = 0; i < player.bench.size(); ++i)
+	{
+		float y = kBenchTopY - kBenchStepY * (float)(i + 1);
+
+		UIHotRegion region;
+		region.kind = UIRegionKind::BenchUnit;
+		region.index = (int)i;
+		region.minX = kBenchX - 4.0f;
+		region.maxX = kBenchX + 260.0f; // ベンチ行の想定最大幅(実機で要微調整)。
+		region.maxY = y + 4.0f;
+		region.minY = y - kBenchStepY + 8.0f;
+		out.push_back(region);
+	}
+}
+
 void BoardUIRenderer::DrawCombat(RenderContext& rc, const CombatPlayback& playback, UIRectRenderer& rectRenderer)
 {
 	m_bars.clear();

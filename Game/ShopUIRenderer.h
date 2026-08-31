@@ -2,8 +2,10 @@
 #include <string>
 #include <vector>
 #include "UnitDef.h"
+#include "UIHotRegion.h"
 
 struct Player;
+class UIRectRenderer;
 
 /// <summary>
 /// 準備フェーズのショップUI(画面下部のショップバー)を2Dで描画するクラス。
@@ -36,6 +38,8 @@ public:
 	/// <param name="shopCursorIndex">ショップ一覧上のカーソル位置(CursorSelectionSystem由来)。</param>
 	/// <param name="shopFocused">今カーソルのフォーカスがショップに当たっているか(当たっている枠を強調表示する)。</param>
 	/// <param name="shopLocked">ショップがロックされているか(ヘッダー行に[LOCKED]を表示し金色にする)。</param>
+	/// <param name="rectRenderer">Reroll/BuyXP/Lock/NextPhaseボタンの背景矩形を描く共通ヘルパー。
+	/// OnRender2D内で使うためここで受け取ったポインタをキャッシュする(他UI Rendererと同じパターン)。</param>
 	void Draw(
 		RenderContext& rc,
 		const std::vector<const UnitDef*>& shop,
@@ -45,7 +49,8 @@ public:
 		int buyXpCost,
 		int shopCursorIndex,
 		bool shopFocused,
-		bool shopLocked);
+		bool shopLocked,
+		UIRectRenderer& rectRenderer);
 
 	/// <summary>
 	/// 直近の操作結果を1行フィードバックとして表示する。一定時間表示したのち自動的に消える。
@@ -56,6 +61,13 @@ public:
 	/// フィードバックの表示残り時間を進める。毎フレームGame::Update()から呼ぶ。
 	/// </summary>
 	void UpdateFeedbackTimer(float deltaTime);
+
+	/// <summary>
+	/// 現フレームのクリック可能矩形(5枠のショップカード + Reroll/BuyXP/Lock/NextPhaseボタン)を
+	/// outへ追加する。描画を伴わない純粋関数。Game::Update()の先頭でDraw()と同じ引数を使って呼ぶ
+	/// (レイアウト定数を共有しているためズレない)。shopが空でもボタン4つは常に登録する。
+	/// </summary>
+	void BuildHotRegions(const std::vector<const UnitDef*>& shop, UIHotRegionList& out) const;
 
 	// IRendererオーバーライド。RenderingEngine::Execute()の2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;
@@ -91,4 +103,6 @@ private:
 	std::wstring m_feedbackText;
 	FeedbackLevel m_feedbackLevel = FeedbackLevel::Info;
 	float m_feedbackTimer = 0.0f;   // 残り表示秒数。0以下で非表示。
+
+	UIRectRenderer* m_rectRenderer = nullptr; // Draw()で渡されたものをOnRender2D用に保持する。
 };

@@ -40,6 +40,46 @@ void TitleUIRenderer::Draw(RenderContext& rc, float deltaTime, bool hasSaveData)
 	g_renderingEngine->AddRenderObject(this);
 }
 
+void TitleUIRenderer::BuildHotRegions(bool hasSaveData, UIHotRegionList& out) const
+{
+	// MeasureString相当が無いため、実際に描く文字列の見た目の長さから概算した矩形にする
+	// (kPromptStartX/kPromptStartXSaveと同じ調整値。実機で要微調整)。
+	const float kPromptHeight = 42.0f;
+	const float kMinY = kPromptY - kPromptHeight * 0.6f;
+	const float kMaxY = kPromptY + kPromptHeight * 0.4f;
+
+	if (!hasSaveData)
+	{
+		// "PRESS [A] TO START" 1つだけ。
+		UIHotRegion region;
+		region.kind = UIRegionKind::TitleStartButton;
+		region.minX = kPromptStartX - 6.0f;
+		region.maxX = kPromptStartX + 270.0f;
+		region.minY = kMinY;
+		region.maxY = kMaxY;
+		out.push_back(region);
+	}
+	else
+	{
+		// "[A] CONTINUE     [X] NEW GAME" を左右2つに分ける。
+		UIHotRegion continueRegion;
+		continueRegion.kind = UIRegionKind::TitleStartButton; // 続きから(セーブ有り時のA相当)。
+		continueRegion.minX = kPromptStartXSave - 6.0f;
+		continueRegion.maxX = kPromptStartXSave + 220.0f;
+		continueRegion.minY = kMinY;
+		continueRegion.maxY = kMaxY;
+		out.push_back(continueRegion);
+
+		UIHotRegion newGameRegion;
+		newGameRegion.kind = UIRegionKind::TitleNewGameButton;
+		newGameRegion.minX = continueRegion.maxX;
+		newGameRegion.maxX = continueRegion.maxX + 200.0f;
+		newGameRegion.minY = kMinY;
+		newGameRegion.maxY = kMaxY;
+		out.push_back(newGameRegion);
+	}
+}
+
 void TitleUIRenderer::OnRender2D(RenderContext& rc)
 {
 	m_font.SetShadowParam(true, 3.0f, Vector4(0.0f, 0.0f, 0.0f, 1.0f));

@@ -126,6 +126,22 @@ struct Player
 	}
 
 	/// <summary>
+	/// FindBoardUnitAt()の非const版。アイテム装備等、対象ユニットを書き換える必要がある
+	/// 呼び出し元(Game::Update()のAボタン/マウス左クリック処理)向け。
+	/// </summary>
+	UnitInstance* FindBoardUnitAt(const HexCoord& pos)
+	{
+		for (auto& unit : board)
+		{
+			if (unit.position == pos)
+			{
+				return &unit;
+			}
+		}
+		return nullptr;
+	}
+
+	/// <summary>
 	/// 盤面上のユニットを from マスから to マスへ移動する。
 	/// to は自陣(q0-2)かつ空きマスであること。成功で true。
 	/// 盤面ユニット数は増減しないため GetMaxBoardSize チェックは行わない。

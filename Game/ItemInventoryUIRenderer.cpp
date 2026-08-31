@@ -100,6 +100,24 @@ void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, bool
 	g_renderingEngine->AddRenderObject(this);
 }
 
+void ItemInventoryUIRenderer::BuildHotRegions(const Player& player, UIHotRegionList& out) const
+{
+	// アイテム一覧の各行(kX起点、kStepY間隔で下へ伸びる。Draw()/OnRender2D()と同じ定数)。
+	for (size_t i = 0; i < player.unclaimedItems.size(); ++i)
+	{
+		float y = kTopY - kStepY * (float)(i + 1);
+
+		UIHotRegion region;
+		region.kind = UIRegionKind::UnclaimedItem;
+		region.index = (int)i;
+		region.minX = kX - 4.0f;
+		region.maxX = kX + 260.0f; // 想定最大幅(実機で要微調整)。
+		region.maxY = y + 4.0f;
+		region.minY = y - kStepY + 8.0f;
+		out.push_back(region);
+	}
+}
+
 void ItemInventoryUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;

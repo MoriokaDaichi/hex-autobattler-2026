@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "EconomySystem.h"
+#include "UIHotRegion.h"
 
 class UIRectRenderer;
 
@@ -44,6 +45,15 @@ public:
 	/// <param name="deltaTime">再スタート案内の点滅用。</param>
 	/// <param name="rectRenderer">暗幕(半透明矩形)を描く共通ヘルパー。OnRender2D用に保持する。</param>
 	void DrawVictory(RenderContext& rc, int totalRounds, float deltaTime, UIRectRenderer& rectRenderer);
+
+	/// <summary>
+	/// GameOver/Victory中、「PRESS [A] TO TITLE」のクリック可能矩形をoutへ追加する。
+	/// それ以外(RoundResult等、ボタン無し)は何も追加しない。描画を伴わない純粋関数。
+	/// isGameOverOrVictoryはGame::Update()側でGameState::currentPhaseから直接判定して渡す
+	/// (Draw*()で更新されるm_modeは前フレームの値のままになりうるため使わない。1フレーム遅延回避)。
+	/// 点滅表示中でも(非表示フレームでも)クリックできるよう、点滅状態に関わらず常に登録する。
+	/// </summary>
+	void BuildHotRegions(bool isGameOverOrVictory, UIHotRegionList& out) const;
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;

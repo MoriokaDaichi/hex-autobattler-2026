@@ -54,6 +54,15 @@ public:
 	/// </summary>
 	bool GetHexCursor(HexCoord& outHex) const;
 
+	/// <summary>
+	/// マウスのスクリーン座標(ウィンドウクライアント座標、左上原点、ピクセル)をUI_SPACE座標
+	/// (1920x1080、中央原点・y上向き。Font/UIRectRendererと共通)へ変換する。
+	/// UI_SPACE_WIDTH/HEIGHTはFRAME_BUFFER_W/Hと完全に一致しているため単純な平行移動でよい
+	/// (盤面ピッキング用のTryMouseToHexとは別経路。3D射影を経由しない)。
+	/// ウィンドウのクライアント領域外ならfalseを返す。
+	/// </summary>
+	static bool ScreenToUISpace(int mx, int my, Vector2& outUI);
+
 private:
 	void UpdateFocusSwitch();
 	void UpdateListCursor();

@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <string>
 #include <vector>
+#include "UIHotRegion.h"
 
 struct Player;
 
@@ -26,6 +27,12 @@ public:
 	/// <param name="cursorIndex">アイテム一覧上のカーソル位置(CursorSelectionSystem由来)。</param>
 	/// <param name="heldIndex">「手に持っている」アイテムのindex(-1で無し)。装備先ユニット選択待ちの状態。</param>
 	void Draw(RenderContext& rc, const Player& player, bool focused, int cursorIndex, int heldIndex);
+
+	/// <summary>
+	/// 現フレームの未装備アイテム一覧のクリック可能矩形をoutへ追加する。描画を伴わない純粋関数。
+	/// Game::Update()の先頭でDraw()と同じplayerを使って呼ぶ(レイアウト定数を共有しているためズレない)。
+	/// </summary>
+	void BuildHotRegions(const Player& player, UIHotRegionList& out) const;
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;

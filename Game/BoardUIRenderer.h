@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <string>
 #include <vector>
+#include "UIHotRegion.h"
 
 struct Player;
 class CombatPlayback;
@@ -25,6 +26,19 @@ public:
 	/// <param name="rectRenderer">HPバー/スキルゲージバーの塗り矩形を描く共通ヘルパー。OnRender2D内で
 	/// 使うため、ここで受け取ったポインタをキャッシュしておく(Fontと違い毎フレームGameから渡される)。</param>
 	void DrawCombat(RenderContext& rc, const CombatPlayback& playback, UIRectRenderer& rectRenderer);
+
+	/// <summary>
+	/// 現フレームのベンチ一覧のクリック可能矩形をoutへ追加する。描画を伴わない純粋関数。
+	/// Game::Update()の先頭でDrawPreparation()と同じplayerを使って呼ぶ(レイアウト定数を
+	/// 共有しているためズレない)。
+	/// </summary>
+	void BuildHotRegions(const Player& player, UIHotRegionList& out) const;
+
+	/// <summary>
+	/// ワールド座標を、カメラのVP行列でUI空間座標へ射影する。カメラ背後や大きく画面外ならfalse。
+	/// 盤面ヘックスのヒット領域計算(Game::Update())からも使うためpublicに公開している。
+	/// </summary>
+	static bool WorldToUI(const Vector3& world, Vector2& outUI);
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;
@@ -53,9 +67,6 @@ private:
 	{
 		std::wstring text;
 	};
-
-	/// <summary>ワールド座標を、カメラのVP行列でUI空間座標へ射影する。カメラ背後や大きく画面外ならfalse。</summary>
-	static bool WorldToUI(const Vector3& world, Vector2& outUI);
 
 	Font m_font;
 	Mode m_mode = Mode::None;

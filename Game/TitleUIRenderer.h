@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include "UIHotRegion.h"
 
 /// <summary>
 /// タイトル画面(Phase::Title)の2D UI(タイトルロゴ代わりの文字列 + スタート操作ガイド)を描画するクラス。
@@ -20,6 +21,13 @@ public:
 	/// 「PRESS [A] TO START」を表示する。
 	/// </param>
 	void Draw(RenderContext& rc, float deltaTime, bool hasSaveData);
+
+	/// <summary>
+	/// 現フレームのクリック可能矩形(hasSaveDataに応じてStart 1個 または Continue+NewGame 2個)を
+	/// outへ追加する。描画を伴わない純粋関数。点滅表示中でも(非表示フレームでも)クリックできるよう、
+	/// 点滅状態に関わらず常に登録する。
+	/// </summary>
+	void BuildHotRegions(bool hasSaveData, UIHotRegionList& out) const;
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;

@@ -80,6 +80,25 @@ void ResultUIRenderer::DrawVictory(RenderContext& rc, int totalRounds, float del
 	g_renderingEngine->AddRenderObject(this);
 }
 
+void ResultUIRenderer::BuildHotRegions(bool isGameOverOrVictory, UIHotRegionList& out) const
+{
+	if (!isGameOverOrVictory) return;
+
+	// "PRESS [A] TO TITLE"(半角19文字、kPromptScale)。MeasureString相当が無いため、
+	// CenteredStartX()と同じ概算(1文字あたり23px)で幅を見積もる(実機で要微調整)。
+	const float kApproxCharWidth = 23.0f;
+	float width = 19.0f * kApproxCharWidth * kPromptScale;
+	float startX = CenteredStartX(19, kPromptScale);
+
+	UIHotRegion region;
+	region.kind = UIRegionKind::RestartButton;
+	region.minX = startX - 6.0f;
+	region.maxX = startX + width + 6.0f;
+	region.minY = kPromptY - 28.0f;
+	region.maxY = kPromptY + 16.0f;
+	out.push_back(region);
+}
+
 void ResultUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (m_mode == Mode::None) return;

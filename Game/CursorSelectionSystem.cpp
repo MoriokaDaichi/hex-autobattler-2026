@@ -176,3 +176,15 @@ bool CursorSelectionSystem::GetHexCursor(HexCoord& outHex) const
 	outHex = m_hexCursor;
 	return true;
 }
+
+bool CursorSelectionSystem::ScreenToUISpace(int mx, int my, Vector2& outUI)
+{
+	if (mx < 0 || my < 0 || mx >= static_cast<int>(FRAME_BUFFER_W) || my >= static_cast<int>(FRAME_BUFFER_H)) {
+		// ウィンドウのクライアント領域外(TryMouseToHexと同じ境界チェック)。
+		return false;
+	}
+
+	outUI.x = static_cast<float>(mx) - static_cast<float>(UI_SPACE_WIDTH) * 0.5f;
+	outUI.y = static_cast<float>(UI_SPACE_HEIGHT) * 0.5f - static_cast<float>(my);
+	return true;
+}
