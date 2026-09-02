@@ -82,18 +82,18 @@ void TooltipUIRenderer::OnRender2D(RenderContext& rc)
 	{
 		left = m_anchor.x - kOffsetX - panelWidth; // 右にはみ出るなら、アンカーの左側に出す。
 	}
-	if (left < -halfW)
-	{
-		left = -halfW; // それでも画面外なら左端に張り付ける。
-	}
 	if (top - panelHeight < -halfH)
 	{
 		top = m_anchor.y + kOffsetY; // 下にはみ出るなら、アンカーの上側に出す。
 	}
-	if (top > halfH)
-	{
-		top = halfH; // それでも画面外なら上端に張り付ける。
-	}
+
+	// フリップ後(あるいはEstimateWidth()の概算誤差)でもまだ画面外に出ている場合に備え、
+	// 最後に4辺を無条件でピン留めする(実機検証で判明: フリップだけでは画面下端・右端で
+	// パネルが切れるケースが残っていた。左右クランプに揃えて上下も同様に補強する)。
+	if (left < -halfW) left = -halfW;
+	if (left + panelWidth > halfW) left = halfW - panelWidth;
+	if (top > halfH) top = halfH;
+	if (top - panelHeight < -halfH) top = -halfH + panelHeight;
 
 	Vector2 panelCenter(left + panelWidth * 0.5f, top - panelHeight * 0.5f);
 

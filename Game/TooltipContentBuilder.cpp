@@ -66,7 +66,10 @@ namespace
 	}
 
 	// bench/board上のUnitInstance向け。UnitDef概要 + 星 + 適用中ボーナス + 装備アイテムを追加する。
-	void AppendUnitInstanceLines(std::vector<std::wstring>& out, const UnitInstance& unit, const Player& player)
+	// isOnBoard: 末尾の操作案内を、右クリックで「売却」(bench)か「ベンチへ戻す」(board、GOLD増えない)
+	// かで出し分けるために必要(実機検証で判明: 両者は挙動が異なるため文言を混同してはいけない。
+	// Player::ReturnUnitToBenchは売却ではなくベンチへ戻すだけでゴールドは増えない)。
+	void AppendUnitInstanceLines(std::vector<std::wstring>& out, const UnitInstance& unit, const Player& player, bool isOnBoard)
 	{
 		// 星表記はBoardUIRenderer::StarSuffixと同じくASCIIの"*"を使う(スプライトフォント未収録の
 		// 装飾記号グリフを描くとFontEngineが例外でアプリごとクラッシュするため、"★"等は使わない)。
@@ -115,9 +118,17 @@ namespace
 			out.push_back(itemsLine);
 		}
 
-		wchar_t sellLine[64];
-		swprintf_s(sellLine, L"クリックで選択/移動  右クリックで売却 (+%dG)", player.CalculateSellValue(unit));
-		out.push_back(sellLine);
+		wchar_t actionLine[64];
+		if (isOnBoard)
+		{
+			// Player::ReturnUnitToBenchはベンチへ戻すだけで売却ではない(ゴールドは増えない)。
+			swprintf_s(actionLine, L"クリックで選択/移動  右クリックでベンチへ戻す");
+		}
+		else
+		{
+			swprintf_s(actionLine, L"クリックで選択/移動  右クリックで売却 (+%dG)", player.CalculateSellValue(unit));
+		}
+		out.push_back(actionLine);
 	}
 
 	std::vector<std::wstring> BuildForShopSlot(const UIHotRegion& region, const std::vector<const UnitDef*>& shop, const Player& player)
@@ -151,7 +162,7 @@ namespace
 	{
 		std::vector<std::wstring> lines;
 		if (region.index < 0 || region.index >= (int)player.bench.size()) return lines;
-		AppendUnitInstanceLines(lines, player.bench[region.index], player);
+		AppendUnitInstanceLines(lines, player.bench[region.index], player, /*isOnBoard=*/false);
 		return lines;
 	}
 
@@ -160,7 +171,7 @@ namespace
 		std::vector<std::wstring> lines;
 		const UnitInstance* unit = player.FindBoardUnitAt(region.hex);
 		if (unit == nullptr) return lines;
-		AppendUnitInstanceLines(lines, *unit, player);
+		AppendUnitInstanceLines(lines, *unit, player, /*isOnBoard=*/true);
 		return lines;
 	}
 
