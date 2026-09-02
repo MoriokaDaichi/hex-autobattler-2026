@@ -68,8 +68,10 @@ namespace
 	// bench/board上のUnitInstance向け。UnitDef概要 + 星 + 適用中ボーナス + 装備アイテムを追加する。
 	void AppendUnitInstanceLines(std::vector<std::wstring>& out, const UnitInstance& unit, const Player& player)
 	{
+		// 星表記はBoardUIRenderer::StarSuffixと同じくASCIIの"*"を使う(スプライトフォント未収録の
+		// 装飾記号グリフを描くとFontEngineが例外でアプリごとクラッシュするため、"★"等は使わない)。
 		wchar_t title[80];
-		swprintf_s(title, L"%hs  ★%d", unit.def->name.c_str(), unit.starLevel);
+		swprintf_s(title, L"%hs  *%d", unit.def->name.c_str(), unit.starLevel);
 		out.push_back(title);
 
 		AppendUnitDefLines(out, *unit.def);
@@ -191,8 +193,10 @@ namespace
 		{
 			if (p.type == PassiveEffectType::OnHitBurn)
 			{
+				// "×"(乗算記号)もスプライトフォント未収録の恐れがあるためASCIIの"x"を使う
+				// (★と同じ理由。BoardUIRenderer::StarSuffixの割り切りに倣う)。
 				wchar_t buf[128];
-				swprintf_s(buf, L"パッシブ: 通常攻撃時に火傷付与(%d×%d回, %.1fs間隔)", p.magnitude, p.ticks, p.interval);
+				swprintf_s(buf, L"パッシブ: 通常攻撃時に火傷付与(%dx%d回, %.1fs間隔)", p.magnitude, p.ticks, p.interval);
 				lines.push_back(buf);
 			}
 		}
