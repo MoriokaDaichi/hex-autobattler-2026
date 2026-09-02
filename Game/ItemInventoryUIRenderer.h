@@ -4,6 +4,7 @@
 #include "UIHotRegion.h"
 
 struct Player;
+class UIRectRenderer;
 
 /// <summary>
 /// 準備フェーズに、まだどのユニットにも装備していない入手済みアイテム(Player::unclaimedItems)を
@@ -26,7 +27,9 @@ public:
 	/// <param name="focused">今カーソルのフォーカスがアイテム一覧に当たっているか。</param>
 	/// <param name="cursorIndex">アイテム一覧上のカーソル位置(CursorSelectionSystem由来)。</param>
 	/// <param name="heldIndex">「手に持っている」アイテムのindex(-1で無し)。装備先ユニット選択待ちの状態。</param>
-	void Draw(RenderContext& rc, const Player& player, bool focused, int cursorIndex, int heldIndex);
+	/// <param name="hoveredIndex">マウスホバー中のアイテムindex(無ければ-1)。カード枠のハイライトに使う。</param>
+	/// <param name="rectRenderer">カード背景の塗り矩形を描く共通ヘルパー。OnRender2D用に保持する。</param>
+	void Draw(RenderContext& rc, const Player& player, bool focused, int cursorIndex, int heldIndex, int hoveredIndex, UIRectRenderer& rectRenderer);
 
 	/// <summary>
 	/// 現フレームの未装備アイテム一覧のクリック可能矩形をoutへ追加する。描画を伴わない純粋関数。
@@ -51,5 +54,7 @@ private:
 	bool m_focused = false;
 	int m_cursorIndex = -1;
 	int m_heldIndex = -1;
+	int m_hoveredIndex = -1;
+	UIRectRenderer* m_rectRenderer = nullptr; // Draw()で渡されたものをOnRender2D用に保持する。
 	bool m_hasData = false;
 };

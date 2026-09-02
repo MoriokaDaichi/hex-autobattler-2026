@@ -6,6 +6,7 @@
 struct UnitInstance;
 class TraitDatabase;
 class TraitSystem;
+class UIRectRenderer;
 
 /// <summary>
 /// 全トレイト(TraitDatabase::GetAllTraitDefs())の発動状況を画面左側に一覧表示するクラス。
@@ -23,7 +24,8 @@ public:
 	/// <summary>
 	/// 準備フェーズ中、毎フレーム呼ぶ。boardの構成から各トレイトの発動状況を集計して保持する。
 	/// </summary>
-	void Draw(RenderContext& rc, const std::vector<UnitInstance>& board, const TraitDatabase& traitDatabase, const TraitSystem& traitSystem);
+	/// <param name="rectRenderer">パネル背景・行区切りの塗り矩形を描く共通ヘルパー。OnRender2D用に保持する。</param>
+	void Draw(RenderContext& rc, const std::vector<UnitInstance>& board, const TraitDatabase& traitDatabase, const TraitSystem& traitSystem, UIRectRenderer& rectRenderer);
 
 	/// <summary>
 	/// 現フレームの各トレイト行のクリック可能矩形(ホバーのみ、クリック無反応)をoutへ追加する。
@@ -45,5 +47,6 @@ private:
 
 	Font m_font;
 	std::vector<TraitRow> m_rows; // 発動中を先頭にまとめ、続けて未発動を並べた状態で保持する。
+	UIRectRenderer* m_rectRenderer = nullptr; // Draw()で渡されたものをOnRender2D用に保持する。
 	bool m_hasData = false;
 };

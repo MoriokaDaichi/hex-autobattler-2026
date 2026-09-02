@@ -148,6 +148,9 @@
     <ClInclude Include="TooltipUIRenderer.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="UIStyle.h">
+      <Filter>Core</Filter>
+    </ClInclude>
     <ClInclude Include="UnitModelDisplay.h">
       <Filter>Core</Filter>
     </ClInclude>

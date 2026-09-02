@@ -273,6 +273,7 @@
     <ClInclude Include="UITextUtil.h" />
     <ClInclude Include="TooltipContentBuilder.h" />
     <ClInclude Include="TooltipUIRenderer.h" />
+    <ClInclude Include="UIStyle.h" />
     <ClInclude Include="GameState.h" />
     <ClInclude Include="HexCoord.h" />
     <ClInclude Include="HexGridRenderer.h" />

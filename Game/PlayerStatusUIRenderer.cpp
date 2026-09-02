@@ -2,6 +2,7 @@
 #include "PlayerStatusUIRenderer.h"
 #include "Player.h"
 #include "UIRectRenderer.h"
+#include "UIStyle.h"
 
 namespace
 {
@@ -35,6 +36,13 @@ namespace
 	const float kXPBarFgHeight = 10.0f;
 	const Vector4 kXPBarBgColor(0.22f, 0.22f, 0.26f, 0.9f); // BoardUIRendererのkBarBgColorと同系(暗いスレート色)。
 	const Vector4 kXPBarFgColor(0.55f, 0.85f, 1.0f, 1.0f); // 水色寄り(kLevelColorと同系)。
+
+	// GOLD/BOARD行 + LV/XP行をまとめて囲むカードパネル(ui-mouse-cardsフェーズ3、plan.md §4-2)。
+	const Vector2 kCenterPivot(0.5f, 0.5f);
+	const float kPanelLeft = kX - 12.0f;
+	const float kPanelRight = 900.0f; // 画面右端(960)に余裕を残す。
+	const float kPanelTop = kGoldY + 16.0f;
+	const float kPanelBottom = kLevelY - 24.0f;
 }
 
 void PlayerStatusUIRenderer::Draw(RenderContext& rc, const Player& player, int xpForNextLevel, UIRectRenderer& rectRenderer)
@@ -92,6 +100,12 @@ void PlayerStatusUIRenderer::OnRender2D(RenderContext& rc)
 	if (!m_hasData) return;
 
 	// 矩形(Sprite)はFont::Begin()〜End()の外側で先に描き終える(plan.md §0-8)。
+	if (m_rectRenderer != nullptr)
+	{
+		Vector2 panelCenter((kPanelLeft + kPanelRight) * 0.5f, (kPanelTop + kPanelBottom) * 0.5f);
+		Vector2 panelSize(kPanelRight - kPanelLeft, kPanelTop - kPanelBottom);
+		m_rectRenderer->DrawPanel(rc, panelCenter, panelSize, UIStyle::kPanelFillColor, UIStyle::kPanelBorderColor, UIStyle::kPanelBorderThickness, kCenterPivot);
+	}
 	if (m_rectRenderer != nullptr && m_xpForNextLevel > 0)
 	{
 		float ratio = (float)m_xp / (float)m_xpForNextLevel;

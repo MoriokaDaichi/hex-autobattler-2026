@@ -3,6 +3,7 @@
 #include "Player.h"
 #include "UIRectRenderer.h"
 #include "UITextUtil.h"
+#include "UIStyle.h"
 
 namespace
 {
@@ -82,9 +83,11 @@ void ShopUIRenderer::Draw(
 	int shopCursorIndex,
 	bool shopFocused,
 	bool shopLocked,
+	int hoveredIndex,
 	UIRectRenderer& rectRenderer)
 {
 	m_rectRenderer = &rectRenderer;
+	m_hoveredIndex = hoveredIndex;
 
 	m_slots.clear();
 	m_slots.reserve(shop.size());
@@ -152,20 +155,38 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;
 
-	// --- マウス用の常設ボタン(背景矩形)。Font::Begin()より前にまとめて描く
+	// --- マウス用の常設ボタン + 5枠のカード背景。Font::Begin()より前にまとめて描く
 	// (Sprite矩形はSpriteBatchの状態と競合するため。docs/tasks/ui-sprite-bars/plan.md §0-8)。
 	if (m_rectRenderer != nullptr)
 	{
-		auto drawButton = [&](int slotIndex, const Vector4& color)
+		auto drawButton = [&](int slotIndex, const Vector4& fillColor)
 		{
 			Vector2 pos(kButtonStartX + kButtonStepX * (float)slotIndex, kButtonY);
-			m_rectRenderer->DrawRect(rc, pos, Vector2(kButtonWidth, kButtonHeight), color, kCenterPivot);
+			m_rectRenderer->DrawPanel(rc, pos, Vector2(kButtonWidth, kButtonHeight),
+				fillColor, UIStyle::kPanelBorderColor, UIStyle::kPanelBorderThickness, kCenterPivot);
 		};
 
 		drawButton(0, kButtonColor);                                    // Reroll
 		drawButton(1, kButtonColor);                                    // BuyXP
 		drawButton(2, m_shopLocked ? kButtonLockedColor : kButtonColor); // Lock
 		drawButton(3, kButtonColor);                                    // NextPhase
+
+		// ショップ5枠のカード(ui-mouse-cardsフェーズ3、plan.md §4-2)。枠色はコストティア色、
+		// 選択中(キーボード/パッド)は太く金色、ホバー中(マウス)は水色でハイライトする。
+		for (size_t i = 0; i < m_slots.size(); ++i)
+		{
+			float slotX = kSlotStartX + kSlotStepX * (float)i;
+			Vector2 cardCenter(slotX + kSlotStepX * 0.5f - 20.0f, (kNameY + kDetailY) * 0.5f - 12.0f);
+			Vector2 cardSize(kSlotStepX - 30.0f, (kNameY - kDetailY) + 40.0f);
+
+			bool selected = m_shopFocused && ((int)i == m_cursorIndex);
+			bool hovered = ((int)i == m_hoveredIndex);
+			Vector4 borderColor = selected ? UIStyle::kSelectedBorderColor
+				: hovered ? UIStyle::kHoveredBorderColor : CostTierColor(m_slots[i].cost);
+			float borderThickness = selected ? UIStyle::kSelectedBorderThickness : UIStyle::kPanelBorderThickness;
+
+			m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor, borderColor, borderThickness, kCenterPivot);
+		}
 	}
 
 	// 3Dシーンの上に重なっても読めるよう、影付きで描画する。

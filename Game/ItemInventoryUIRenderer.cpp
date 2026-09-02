@@ -3,6 +3,8 @@
 #include "Player.h"
 #include "ItemDef.h"
 #include "UITextUtil.h"
+#include "UIRectRenderer.h"
+#include "UIStyle.h"
 
 namespace
 {
@@ -21,6 +23,7 @@ namespace
 	const float kItemScale = 0.48f;
 
 	const Vector2 kTopLeftPivot(0.0f, 1.0f); // 実質的な左上アンカー(他のHUDと同じ扱い)。
+	const Vector2 kCenterPivot(0.5f, 0.5f);
 
 	const Vector4 kTitleColor(0.9f, 0.9f, 0.95f, 1.0f);
 	const Vector4 kNormalColor(0.80f, 0.83f, 0.88f, 1.0f);
@@ -50,7 +53,7 @@ namespace
 	}
 }
 
-void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, bool focused, int cursorIndex, int heldIndex)
+void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, bool focused, int cursorIndex, int heldIndex, int hoveredIndex, UIRectRenderer& rectRenderer)
 {
 	m_items.clear();
 	m_items.reserve(player.unclaimedItems.size());
@@ -69,6 +72,8 @@ void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, bool
 	m_focused = focused;
 	m_cursorIndex = cursorIndex;
 	m_heldIndex = heldIndex;
+	m_hoveredIndex = hoveredIndex;
+	m_rectRenderer = &rectRenderer;
 	m_hasData = true;
 
 	g_renderingEngine->AddRenderObject(this);
@@ -95,6 +100,28 @@ void ItemInventoryUIRenderer::BuildHotRegions(const Player& player, UIHotRegionL
 void ItemInventoryUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;
+
+	// アイテム一覧をカードリスト化する(ui-mouse-cardsフェーズ3、plan.md §4-2。ShopUIRendererの
+	// 5枠と同じ縦版パターン)。Sprite矩形はFont::Begin()〜End()の外側でまとめて描く(§0-8)。
+	if (m_rectRenderer != nullptr && !m_items.empty())
+	{
+		for (size_t i = 0; i < m_items.size(); ++i)
+		{
+			float y = kTopY - kStepY * (float)(i + 1);
+			Vector2 cardCenter(kX + 125.0f, y - kStepY * 0.5f + 6.0f);
+			Vector2 cardSize(258.0f, kStepY - 4.0f);
+
+			bool held = ((int)i == m_heldIndex);
+			bool selected = m_focused && ((int)i == m_cursorIndex);
+			bool hovered = ((int)i == m_hoveredIndex);
+			Vector4 borderColor = held ? kHeldColor
+				: selected ? UIStyle::kSelectedBorderColor
+				: hovered ? UIStyle::kHoveredBorderColor : UIStyle::kPanelBorderColor;
+			float borderThickness = (held || selected) ? UIStyle::kSelectedBorderThickness : UIStyle::kPanelBorderThickness;
+
+			m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor, borderColor, borderThickness, kCenterPivot);
+		}
+	}
 
 	m_font.SetShadowParam(true, 2.0f, Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 	m_font.Begin(rc);

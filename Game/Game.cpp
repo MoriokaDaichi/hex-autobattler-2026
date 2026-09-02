@@ -1338,7 +1338,7 @@ void Game::Render(RenderContext& rc)
 	}
 
 	// フェーズを問わず常時、画面右上にラウンド数・戦績(連敗カウント)を表示する。
-	m_roundRecordUI.Draw(rc, m_gameState);
+	m_roundRecordUI.Draw(rc, m_gameState, m_uiRectRenderer);
 
 	// 準備フェーズのみ、画面下部にショップバーとベンチ一覧を表示する。
 	if (m_gameState.currentPhase == Phase::Preparation)
@@ -1347,6 +1347,15 @@ void Game::Render(RenderContext& rc)
 		bool shopFocused = m_cursorSelection.GetFocus() == InputFocus::Shop;
 		int shopCursorIndex = m_cursorSelection.GetListCursorIndex();
 		const int kRerollCost = 2; // Game::Update()のYボタン処理と同じ値。
+
+		// マウスホバー中の領域を1回だけ解決し、各カードのハイライトに使う
+		// (ui-mouse-cardsフェーズ3、plan.md §4-2「ホバー中枠(フェーズ2のホバー状態を流用)」)。
+		UIHotRegion hoveredRegion;
+		bool haveHoveredRegion = m_uiInteraction.GetHovered(hoveredRegion);
+		auto hoveredIndexFor = [&](UIRegionKind kind) -> int
+		{
+			return (haveHoveredRegion && hoveredRegion.kind == kind) ? hoveredRegion.index : -1;
+		};
 
 		m_shopUI.Draw(
 			rc,
@@ -1358,17 +1367,22 @@ void Game::Render(RenderContext& rc)
 			shopFocused ? shopCursorIndex : -1,
 			shopFocused,
 			m_shopLocked,
+			hoveredIndexFor(UIRegionKind::ShopSlot),
 			m_uiRectRenderer);
 
-		m_boardUI.DrawPreparation(rc, player);
+		bool benchFocused = m_cursorSelection.GetFocus() == InputFocus::Bench;
+		m_boardUI.DrawPreparation(rc, player, benchFocused,
+			benchFocused ? m_cursorSelection.GetListCursorIndex() : -1,
+			hoveredIndexFor(UIRegionKind::BenchUnit), m_uiRectRenderer);
 
 		// 未装備アイテム一覧(画面右側)。Itemsフォーカス中のみカーソル位置を渡して強調する。
 		bool itemsFocused = m_cursorSelection.GetFocus() == InputFocus::Items;
 		m_itemInventoryUI.Draw(rc, player, itemsFocused,
-			itemsFocused ? m_cursorSelection.GetListCursorIndex() : -1, m_heldUnclaimedIndex);
+			itemsFocused ? m_cursorSelection.GetListCursorIndex() : -1, m_heldUnclaimedIndex,
+			hoveredIndexFor(UIRegionKind::UnclaimedItem), m_uiRectRenderer);
 
 		// 全トレイトの発動状況(画面左側、BENCH一覧の下)。
-		m_traitPanelUI.Draw(rc, player.board, m_traitDatabase, m_traitSystem);
+		m_traitPanelUI.Draw(rc, player.board, m_traitDatabase, m_traitSystem, m_uiRectRenderer);
 	}
 	// 戦闘の再生中は、各ユニットの頭上にHPバーを表示する。
 	else if (m_gameState.currentPhase == Phase::Combat && m_combatSimDone)

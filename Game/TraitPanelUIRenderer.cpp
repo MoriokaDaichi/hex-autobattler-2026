@@ -3,16 +3,21 @@
 #include "UnitInstance.h"
 #include "TraitDatabase.h"
 #include "TraitSystem.h"
+#include "UIRectRenderer.h"
+#include "UIStyle.h"
+#include "BoardUIRenderer.h"
 
 namespace
 {
 	const Vector2 kTopLeftPivot(0.0f, 1.0f); // 実質的な左上アンカー(他のUIRenderer群と同じ扱い)。
+	const Vector2 kCenterPivot(0.5f, 0.5f);
+	const Vector2 kLeftMidPivot(0.0f, 0.5f);
 
-	// BoardUIRendererのBENCH一覧(kBenchX=-910、kBenchTopY=250から下に伸びる)と同じ左端xを使い、
-	// 本家同様「左側」に置きつつ、BENCHの下に十分な余白を空けて縦に住み分ける
-	// (典型的なプレイでのbench数を想定した固定値。plan.md参照)。
-	const float kX = -910.0f;
-	const float kTopY = -70.0f;
+	// BoardUIRendererのBENCH一覧と同じ左端xを使う。開始YはBENCHパネルの固定下端(表示行数を
+	// kBenchMaxVisibleRowsでクランプ済みなので予測可能)からさらに余白を空けた位置にする
+	// (ui-mouse-cardsフェーズ3、plan.md §4-3。以前は固定値-70でベンチ7〜8件で衝突していた)。
+	const float kX = BoardUIRenderer::kBenchX;
+	const float kTopY = BoardUIRenderer::kBenchPanelBottomY - 40.0f;
 	const float kStepY = 24.0f;
 
 	const float kTitleScale = 0.5f;
@@ -25,10 +30,15 @@ namespace
 	const wchar_t* kTitleText = L"TRAITS";
 	const wchar_t* kActiveMarker = L"> ";   // ShopUIRendererのカーソル記号と同じ"強調"の意味で流用。
 	const wchar_t* kInactiveMarker = L"  ";
+
+	const float kPanelWidth = 240.0f;
+	const float kDividerHeight = 1.0f;
 }
 
-void TraitPanelUIRenderer::Draw(RenderContext& rc, const std::vector<UnitInstance>& board, const TraitDatabase& traitDatabase, const TraitSystem& traitSystem)
+void TraitPanelUIRenderer::Draw(RenderContext& rc, const std::vector<UnitInstance>& board, const TraitDatabase& traitDatabase, const TraitSystem& traitSystem, UIRectRenderer& rectRenderer)
 {
+	m_rectRenderer = &rectRenderer;
+
 	std::map<TraitType, int> traitCounts = traitSystem.CountBoardTraits(board);
 
 	// 要求仕様通り「発動中は上部、未発動は下部」にまとめるため、いったん2グループに分けてから
@@ -135,6 +145,24 @@ void TraitPanelUIRenderer::BuildHotRegions(const std::vector<UnitInstance>& boar
 void TraitPanelUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;
+
+	// パネル全体を1枚の背景で囲み、行ごとに薄い区切り線を敷く(ui-mouse-cardsフェーズ3、plan.md §4-2)。
+	// Sprite矩形はFont::Begin()〜End()の外側でまとめて描く(§0-8)。
+	if (m_rectRenderer != nullptr)
+	{
+		float panelHeight = kStepY * (float)(m_rows.size() + 1) + 12.0f; // タイトル行込み+余白。
+		Vector2 panelCenter(kX + kPanelWidth * 0.5f - 6.0f, kTopY + 10.0f - panelHeight * 0.5f);
+		m_rectRenderer->DrawPanel(rc, panelCenter, Vector2(kPanelWidth, panelHeight),
+			UIStyle::kPanelFillColor, UIStyle::kPanelBorderColor, UIStyle::kPanelBorderThickness, kCenterPivot);
+
+		for (size_t i = 0; i + 1 < m_rows.size(); ++i)
+		{
+			// 各行の下端に薄い区切り線(タイトル行の下は境目が分かりやすいよう区切らない)。
+			float y = kTopY - kStepY * (float)(i + 1);
+			Vector2 dividerPos(kX - 4.0f, y - kStepY + 4.0f);
+			m_rectRenderer->DrawRect(rc, dividerPos, Vector2(kPanelWidth - 8.0f, kDividerHeight), UIStyle::kDividerColor, kLeftMidPivot);
+		}
+	}
 
 	m_font.SetShadowParam(true, 2.0f, Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 	m_font.Begin(rc);
