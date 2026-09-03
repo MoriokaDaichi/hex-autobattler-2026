@@ -321,8 +321,15 @@ namespace nsK2Engine {
     void RenderingEngine::Execute(RenderContext& rc)
     {
         // シーンライトのデータをコピー。
+        // [board-layout-rework] When the raytracing world has no instances, Dispatch()
+        // early-outs and its output texture stays stale; sampling it in deferred lighting
+        // makes old unit-model reflections linger on Title/GameOver. Treat raytracing as
+        // inactive while the instance count is 0.
+        bool isRaytracingActive = IsEnableRaytracing()
+            && g_graphicsEngine->GetNumRaytracingWorldInstance() > 0;
+
         m_deferredLightingCB.m_light = m_sceneLight.GetSceneLight();
-        m_deferredLightingCB.m_isEnableRaytracing = IsEnableRaytracing() ? 1 : 0;
+        m_deferredLightingCB.m_isEnableRaytracing = isRaytracingActive ? 1 : 0;
 
         // レイトレ用のライトデータをコピー。
         m_raytracingLightData.m_directionalLight = m_sceneLight.GetSceneLight().directionalLight[0];
@@ -346,7 +353,7 @@ namespace nsK2Engine {
         RenderToGBuffer(rc);
 
         // レイトレで映り込み画像を作成する。
-        if (IsEnableRaytracing()) {
+        if (isRaytracingActive) {
             g_graphicsEngine->DispatchRaytracing(rc);
             for (auto& blur : m_giTextureBlur) {
                 blur.ExecuteOnGPU(rc, 5);

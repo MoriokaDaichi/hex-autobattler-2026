@@ -4,8 +4,16 @@
 
 namespace
 {
-	// 検証用コードで確認済みの基準スケール(★1)。1ヘックスマスに収まる適正値。
-	const Vector3 kUnitModelScale(10.0f, 10.0f, 10.0f);
+	// ★1基準の表示スケール。board-layout-rework で「1体が概ね1マスに収まり隣と重ならない」よう
+	// 10.0 → 4.0 に縮小(F5是正2で 5→4。さらに 3.5〜4.5 を微調整する出発値)。頭上バーの
+	// Yオフセット(BoardUIRenderer::kBarWorldY)もこれに追随して調整している。
+	const Vector3 kUnitModelScale(4.0f, 4.0f, 4.0f);
+
+	// モデル原点が中心にあり、そのまま y=0 に置くと下半分がヘックス平面へめり込む。
+	// 足元が平面に乗るよう、モデル高の概ね半分だけ Y へ持ち上げる。
+	// 実効スケール(kUnitModelScale × 星倍率)に比例させる。scale=1 相当での半モデル高の目安値で、
+	// F5 反復前提の出発値(埋まる/浮くなら増減する。scale 4 で +40 相当)。
+	const float kUnitModelHalfHeightAtScale1 = 10.0f;
 
 	// 星レベルに応じた表示スケール倍率。★が上がるほど一回り大きく見せて盤面上で区別できるようにする。
 	// StarLevelSystem::GetStarMultiplier(★1比 約1.8倍/★)はステータス用で、そのまま使うと
@@ -22,21 +30,21 @@ namespace
 	}
 }
 
-void UnitModelDisplay::Update(const Player& player)
+void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
 {
-	RebuildIfBoardChanged(player);
+	RebuildIfBoardChanged(board);
 
 	// 表示位置はHexGridRendererのグリッド線・ゾーン塗りと同じ座標系(盤面中心が原点)に合わせる。
 	// モデルの再ロードは伴わない軽い処理なので、位置同期とアニメーション更新は毎フレーム行う。
 	// Windows.hのmin/maxマクロとの衝突を避けるため、std::minは使わずに手書きする。
 	size_t numDisplayed = m_displayEntries.size();
-	if (player.board.size() < numDisplayed)
+	if (board.size() < numDisplayed)
 	{
-		numDisplayed = player.board.size();
+		numDisplayed = board.size();
 	}
 	for (size_t i = 0; i < numDisplayed; ++i)
 	{
-		const UnitInstance& unit = player.board[i];
+		const UnitInstance& unit = board[i];
 		ModelRender& modelRender = *m_displayEntries[i].modelRender;
 
 		Vector3 worldPos = HexGridRenderer::CalcTileCenter(unit.position.q, unit.position.r);
@@ -45,6 +53,9 @@ void UnitModelDisplay::Update(const Player& player)
 		float starScale = GetStarModelScaleMultiplier(unit.starLevel);
 		Vector3 modelScale = kUnitModelScale;
 		modelScale.Scale(starScale);
+
+		// 足元がヘックス平面(y=0)に乗るよう、実効スケールに比例して持ち上げる(めり込み対策)。
+		worldPos.y += kUnitModelHalfHeightAtScale1 * kUnitModelScale.x * starScale;
 
 		modelRender.SetTRS(worldPos, Quaternion::Identity, modelScale);
 		modelRender.Update();
@@ -59,13 +70,19 @@ void UnitModelDisplay::Draw(RenderContext& rc)
 	}
 }
 
-void UnitModelDisplay::RebuildIfBoardChanged(const Player& player)
+void UnitModelDisplay::Clear()
+{
+	m_displayEntries.clear();
+	m_lastBoardSignature.clear();
+}
+
+void UnitModelDisplay::RebuildIfBoardChanged(const std::vector<UnitInstance>& board)
 {
 	// UnitDef*だけでなくstarLevelも含める。合成で星が上がってもUnitDef*は変わらないため、
 	// UnitDef*のみの比較では星レベルに応じた表示スケールの更新契機を取りこぼす。
 	std::vector<std::pair<const UnitDef*, int>> currentSignature;
-	currentSignature.reserve(player.board.size());
-	for (const auto& unit : player.board)
+	currentSignature.reserve(board.size());
+	for (const auto& unit : board)
 	{
 		currentSignature.push_back({ unit.def, unit.starLevel });
 	}
@@ -77,9 +94,9 @@ void UnitModelDisplay::RebuildIfBoardChanged(const Player& player)
 	m_lastBoardSignature = currentSignature;
 
 	m_displayEntries.clear();
-	m_displayEntries.reserve(player.board.size());
+	m_displayEntries.reserve(board.size());
 
-	for (const auto& unit : player.board)
+	for (const auto& unit : board)
 	{
 		DisplayEntry entry;
 		entry.modelRender = std::make_unique<ModelRender>();

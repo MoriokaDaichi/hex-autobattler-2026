@@ -74,6 +74,13 @@ private:
 	std::vector<EnemyStage> m_enemyStages;
 	HexGridRenderer m_hexGridRenderer;
 	UnitModelDisplay m_unitModelDisplay; // players[0].boardのユニットを3D表示する。
+	// board-layout-rework: 敵盤面(r3-5)のユニットモデルを3D表示する。準備/結果フェーズは
+	// m_enemyPreview.board を、戦闘フェーズもそのまま(静止表示。移動アニメはスコープ外)。
+	UnitModelDisplay m_enemyModelDisplay;
+	// そのラウンドの固定敵編成(EnemyFactoryでm_enemyStages[roundNumber-1]から生成)。
+	// roundNumberが変わったら作り直す。表示専用の写し(戦闘の実処理は別途enemyローカルを都度生成する)。
+	Player m_enemyPreview;
+	int m_enemyPreviewRound = -1; // m_enemyPreviewを生成した時のroundNumber(再生成の要否判定)。
 	ShopUIRenderer m_shopUI; // 準備フェーズのショップバー(5枠のカード・操作フィードバック)を2D表示する。
 	BoardUIRenderer m_boardUI; // 戦闘中のHPバー / 準備フェーズのベンチ一覧を2D表示する。
 	PlayerStatusUIRenderer m_playerStatusUI; // 所持ゴールド・レベル/XPゲージをフェーズを問わず常時表示する。

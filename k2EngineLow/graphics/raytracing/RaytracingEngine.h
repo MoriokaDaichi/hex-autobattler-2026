@@ -95,6 +95,12 @@ namespace nsK2EngineLow {
 			{
 				return m_outputTexture;
 			}
+			// [board-layout-rework] Instance count of the raytracing world. Dispatch() early-outs
+			// when this is 0, leaving the output texture and acceleration structures stale.
+			int GetNumInstance() const
+			{
+				return m_world.GetNumInstance();
+			}
 		private:
 			/// <summary>
 			/// ジオメトリの登録を確定。

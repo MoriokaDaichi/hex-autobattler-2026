@@ -8,12 +8,13 @@
 #include "Player.h"
 
 /// <summary>
-/// プレイヤーの盤面(board)に配置されたユニットの3Dモデルをリアルタイムに表示するクラス。
+/// ヘックス盤面に配置されたユニット(UnitInstanceの並び)の3Dモデルを表示するクラス。
 /// ModelRenderは既にIRendererを継承しており、Game::Update()/Game::Render()から
 /// このクラスのUpdate()/Draw()を直接呼んでもらう想定のため、新たにIRendererは実装しない。
 ///
-/// 敵ユニットや戦闘進行そのもの(CombatEngineの結果はOutputDebugStringへ即座に出力されるのみで、
-/// フレームをまたいだリアルタイム表示の仕組みが無い)は対象外。あくまで人間プレイヤーの盤面のみを表示する。
+/// board-layout-rework: 元はプレイヤー盤面(Player::board)専用だったが、敵盤面(r3-5)の
+/// プレビュー表示にも使えるよう「UnitInstanceのvector」を受け取る形へ一般化した。
+/// Gameがプレイヤー用・敵用の2インスタンスを持つ。
 /// </summary>
 class UnitModelDisplay
 {
@@ -22,12 +23,18 @@ public:
 	/// 毎フレーム呼ぶ。盤面構成(board)が前フレームから変化していれば表示用モデルを再構築し、
 	/// 変化の有無に関わらず各モデルの位置とアニメーション状態を更新する。
 	/// </summary>
-	void Update(const Player& player);
+	void Update(const std::vector<UnitInstance>& board);
 
 	/// <summary>
 	/// 毎フレーム呼ぶ。現在保持している全モデルを描画キューに登録する。
 	/// </summary>
 	void Draw(RenderContext& rc);
+
+	/// <summary>
+	/// 保持中の表示モデルを全て破棄する。Title/GameOver/Victory へ遷移する際に呼び、
+	/// 前プレイのユニットモデルが背景に残る(ゴースト)のを防ぐ(board-layout-rework §D)。
+	/// </summary>
+	void Clear();
 
 private:
 	/// <summary>
@@ -46,7 +53,7 @@ private:
 	/// starLevelもシグネチャに含めるのは、合成で同じユニットの星が上がった場合(UnitDef*は不変)にも
 	/// 表示スケールを更新する必要があるため。
 	/// </summary>
-	void RebuildIfBoardChanged(const Player& player);
+	void RebuildIfBoardChanged(const std::vector<UnitInstance>& board);
 
 	/// <summary>
 	/// ユニット種別(UnitDef::name)ごとのAnimationClip[5]を取得する。未ロードならここで初めてロードし、
