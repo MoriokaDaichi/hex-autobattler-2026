@@ -2,6 +2,10 @@
 #include "ItemInventoryUIRenderer.h"
 #include "Player.h"
 #include "ItemDef.h"
+#include "UITextUtil.h"
+#include "UIRectRenderer.h"
+#include "UIStyle.h"
+#include <string>
 
 namespace
 {
@@ -19,7 +23,15 @@ namespace
 	const float kTitleScale = 0.56f;
 	const float kItemScale = 0.48f;
 
+	// アイテム行カードの幅は中身(マーカー+名前+効果)の実テキスト幅に追従させる
+	// (固定258pxだと "FuriousEdge AT+15 AS+20% 火傷" のような長い行がカードからはみ出して切れていた。
+	// ui-mouse-cardsフェーズ3フォローアップ: F5フィードバック是正3)。
+	const float kCardLeftPad = 6.0f;    // カード左端をテキスト開始x(kX)からどれだけ左に出すか。
+	const float kCardRightPad = 16.0f;  // テキスト右端 + この余白をカード右端にする。
+	const float kCardMinWidth = 200.0f; // 短い行でもこれ以上は縮めない。
+
 	const Vector2 kTopLeftPivot(0.0f, 1.0f); // 実質的な左上アンカー(他のHUDと同じ扱い)。
+	const Vector2 kCenterPivot(0.5f, 0.5f);
 
 	const Vector4 kTitleColor(0.9f, 0.9f, 0.95f, 1.0f);
 	const Vector4 kNormalColor(0.80f, 0.83f, 0.88f, 1.0f);
@@ -27,40 +39,13 @@ namespace
 	const Vector4 kHeldColor(0.55f, 1.0f, 0.65f, 1.0f);      // 手に持っている枠。
 	const Vector4 kEmptyColor(0.6f, 0.62f, 0.66f, 1.0f);
 
-	/// <summary>StatEffect 1つを "AT+10" / "HP+20%" のような短いテキストにする。</summary>
-	std::wstring EffectShortText(const StatEffect& e)
-	{
-		const wchar_t* label = L"?";
-		bool percent = false;
-		switch (e.stat)
-		{
-		case StatEffectType::AttackFlat:             label = L"AT"; break;
-		case StatEffectType::AttackPercent:          label = L"AT"; percent = true; break;
-		case StatEffectType::MagicPowerFlat:         label = L"AP"; break;
-		case StatEffectType::MagicPowerPercent:      label = L"AP"; percent = true; break;
-		case StatEffectType::MaxHPFlat:              label = L"HP"; break;
-		case StatEffectType::MaxHPPercent:           label = L"HP"; percent = true; break;
-		case StatEffectType::PhysicalDefenseFlat:    label = L"物防"; break;
-		case StatEffectType::PhysicalDefensePercent: label = L"物防"; percent = true; break;
-		case StatEffectType::MagicDefenseFlat:       label = L"魔防"; break;
-		case StatEffectType::MagicDefensePercent:    label = L"魔防"; percent = true; break;
-		case StatEffectType::SkillThresholdFlat:     label = L"技"; break;
-		case StatEffectType::AttackSpeedFlat:        label = L"AS"; break;
-		case StatEffectType::AttackSpeedPercent:     label = L"AS"; percent = true; break;
-		}
-
-		wchar_t buf[32];
-		swprintf_s(buf, L"%ls+%d%ls", label, (int)e.value, percent ? L"%" : L"");
-		return buf;
-	}
-
 	std::wstring EffectsText(const ItemDef* def)
 	{
 		std::wstring s;
 		for (size_t i = 0; i < def->effects.size(); ++i)
 		{
 			if (i > 0) s += L" ";
-			s += EffectShortText(def->effects[i]);
+			s += UITextUtil::EffectShortText(def->effects[i]);
 		}
 		// パッシブ効果を持つアイテムは、末尾に短いタグを付ける(現状はオンヒット火傷のみ)。
 		for (const PassiveEffect& p : def->passives)
@@ -76,7 +61,7 @@ namespace
 	}
 }
 
-void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, bool focused, int cursorIndex, int heldIndex)
+void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, bool focused, int cursorIndex, int heldIndex, int hoveredIndex, UIRectRenderer& rectRenderer)
 {
 	m_items.clear();
 	m_items.reserve(player.unclaimedItems.size());
@@ -95,14 +80,65 @@ void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, bool
 	m_focused = focused;
 	m_cursorIndex = cursorIndex;
 	m_heldIndex = heldIndex;
+	m_hoveredIndex = hoveredIndex;
+	m_rectRenderer = &rectRenderer;
 	m_hasData = true;
 
 	g_renderingEngine->AddRenderObject(this);
 }
 
+void ItemInventoryUIRenderer::BuildHotRegions(const Player& player, UIHotRegionList& out) const
+{
+	// アイテム一覧の各行(kX起点、kStepY間隔で下へ伸びる。Draw()/OnRender2D()と同じ定数)。
+	for (size_t i = 0; i < player.unclaimedItems.size(); ++i)
+	{
+		float y = kTopY - kStepY * (float)(i + 1);
+
+		UIHotRegion region;
+		region.kind = UIRegionKind::UnclaimedItem;
+		region.index = (int)i;
+		region.minX = kX - 4.0f;
+		region.maxX = kX + 260.0f; // 想定最大幅(実機で要微調整)。
+		region.maxY = y + 4.0f;
+		region.minY = y - kStepY + 8.0f;
+		out.push_back(region);
+	}
+}
+
 void ItemInventoryUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;
+
+	// アイテム一覧をカードリスト化する(ui-mouse-cardsフェーズ3、plan.md §4-2。ShopUIRendererの
+	// 5枠と同じ縦版パターン)。Sprite矩形はFont::Begin()〜End()の外側でまとめて描く(§0-8)。
+	if (m_rectRenderer != nullptr && !m_items.empty())
+	{
+		for (size_t i = 0; i < m_items.size(); ++i)
+		{
+			float y = kTopY - kStepY * (float)(i + 1);
+
+			bool held = ((int)i == m_heldIndex);
+			bool selected = m_focused && ((int)i == m_cursorIndex);
+			bool hovered = ((int)i == m_hoveredIndex);
+
+			// 実際に描く行文字列("%ls%ls  %ls" = marker + name + effects)と同じ内容・同じスケールで
+			// 幅を見積もり、カードをそれに追従させる。
+			const wchar_t* marker = held ? L"[持] " : (selected ? L"> " : L"  ");
+			std::wstring probe = marker; probe += m_items[i].name; probe += L"  "; probe += m_items[i].effects;
+			float drawScale = selected ? kItemScale * 1.08f : kItemScale;
+			float cardWidth = UITextUtil::EstimateTextWidth(probe, drawScale) + kCardLeftPad + kCardRightPad;
+			if (cardWidth < kCardMinWidth) cardWidth = kCardMinWidth;
+
+			Vector2 cardCenter(kX - kCardLeftPad + cardWidth * 0.5f, y - kStepY * 0.5f + 6.0f);
+			Vector2 cardSize(cardWidth, kStepY - 4.0f);
+			Vector4 borderColor = held ? kHeldColor
+				: selected ? UIStyle::kSelectedBorderColor
+				: hovered ? UIStyle::kHoveredBorderColor : UIStyle::kPanelBorderColor;
+			float borderThickness = (held || selected) ? UIStyle::kSelectedBorderThickness : UIStyle::kPanelBorderThickness;
+
+			m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor, borderColor, borderThickness, kCenterPivot);
+		}
+	}
 
 	m_font.SetShadowParam(true, 2.0f, Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 	m_font.Begin(rc);

@@ -3,6 +3,7 @@
 #include "CombatPlayback.h"
 #include "Player.h"
 #include "UIRectRenderer.h"
+#include "UIStyle.h"
 
 namespace
 {
@@ -30,12 +31,11 @@ namespace
 	const float kGaugeY = -22.0f;       // bar.uiPosからのYオフセット。
 	const Vector4 kGaugeColor(0.4f, 0.7f, 1.0f, 1.0f); // 必殺技(マナ)を連想する寒色系。
 
-	// ベンチ一覧のレイアウト(UI空間、中央原点・y上向き)。左端に縦並び。
-	const float kBenchX = -910.0f;
-	const float kBenchTopY = 250.0f;
-	const float kBenchStepY = 40.0f;
+	// ベンチ一覧のレイアウト定数(kBenchX/kBenchTopY/kBenchStepY)はBoardUIRenderer.hへpublic化した
+	// (TraitPanelUIRendererが自分の開始位置を算出するために参照するため。plan.md §4-3)。
 	const float kBenchTitleScale = 0.6f;
 	const float kBenchItemScale = 0.52f;
+	const float kBenchCardPaddingX = 8.0f; // カード内側の左余白(テキストがカード枠に接しないように)。
 
 	Vector4 HPColor(float ratio)
 	{
@@ -68,12 +68,19 @@ bool BoardUIRenderer::WorldToUI(const Vector3& world, Vector2& outUI)
 	return true;
 }
 
-void BoardUIRenderer::DrawPreparation(RenderContext& rc, const Player& player)
+void BoardUIRenderer::DrawPreparation(RenderContext& rc, const Player& player, bool benchFocused, int benchCursorIndex, int hoveredIndex, UIRectRenderer& rectRenderer)
 {
 	m_bench.clear();
-	m_bench.reserve(player.bench.size());
-	for (const auto& unit : player.bench)
+	// kBenchMaxVisibleRows件まで個別表示し、それを超える分は末尾の集約行にまとめる
+	// (ベンチ枚数上限が無いため、カード化しても表示が崩れないようにする。plan.md §4-3)。
+	size_t visibleCount = player.bench.size();
+	bool hasSummaryRow = visibleCount > (size_t)kBenchMaxVisibleRows;
+	if (hasSummaryRow) visibleCount = (size_t)kBenchMaxVisibleRows;
+
+	m_bench.reserve(visibleCount + (hasSummaryRow ? 1 : 0));
+	for (size_t i = 0; i < visibleCount; ++i)
 	{
+		const auto& unit = player.bench[i];
 		BenchView bv;
 		wchar_t buf[80];
 		if (unit.starLevel > 1)
@@ -83,9 +90,44 @@ void BoardUIRenderer::DrawPreparation(RenderContext& rc, const Player& player)
 		bv.text = buf;
 		m_bench.push_back(std::move(bv));
 	}
+	if (hasSummaryRow)
+	{
+		BenchView bv;
+		wchar_t buf[32];
+		swprintf_s(buf, L"...+%d件", (int)(player.bench.size() - visibleCount));
+		bv.text = buf;
+		bv.isSummaryRow = true;
+		m_bench.push_back(std::move(bv));
+	}
 
+	m_benchFocused = benchFocused;
+	m_benchCursorIndex = benchCursorIndex;
+	m_benchHoveredIndex = hoveredIndex;
+	m_rectRenderer = &rectRenderer;
 	m_mode = Mode::Preparation;
 	g_renderingEngine->AddRenderObject(this);
+}
+
+void BoardUIRenderer::BuildHotRegions(const Player& player, UIHotRegionList& out) const
+{
+	// ベンチ一覧の各行(kBenchX起点、kBenchStepY間隔で下へ伸びる。DrawPreparation()と同じ定数)。
+	// kBenchMaxVisibleRowsを超える分は集約行になり個別のクリック対象が無いため登録しない。
+	size_t visibleCount = player.bench.size();
+	if (visibleCount > (size_t)kBenchMaxVisibleRows) visibleCount = (size_t)kBenchMaxVisibleRows;
+
+	for (size_t i = 0; i < visibleCount; ++i)
+	{
+		float y = kBenchTopY - kBenchStepY * (float)(i + 1);
+
+		UIHotRegion region;
+		region.kind = UIRegionKind::BenchUnit;
+		region.index = (int)i;
+		region.minX = kBenchX - 4.0f;
+		region.maxX = kBenchX + 260.0f; // ベンチ行の想定最大幅(実機で要微調整)。
+		region.maxY = y + 4.0f;
+		region.minY = y - kBenchStepY + 8.0f;
+		out.push_back(region);
+	}
 }
 
 void BoardUIRenderer::DrawCombat(RenderContext& rc, const CombatPlayback& playback, UIRectRenderer& rectRenderer)
@@ -127,15 +169,37 @@ void BoardUIRenderer::OnRender2D(RenderContext& rc)
 	// 矩形(Sprite)はFont::Begin()〜End()の外側でまとめて描き終える(SpriteBatchの状態と
 	// 競合するため。docs/tasks/ui-sprite-bars/plan.md §0-8)。背景→前景の順で描くことで、
 	// あとから描くFontのテキストが最前面に来る。
-	if (m_mode == Mode::Combat && m_rectRenderer != nullptr)
+	if (m_mode == Mode::Preparation && m_rectRenderer != nullptr)
+	{
+		// ベンチ一覧をカードリスト化する(ui-mouse-cardsフェーズ3、plan.md §4-2)。集約行
+		// ("...+N件")にはカード枠を付けない(クリック対象ではないため)。
+		for (size_t i = 0; i < m_bench.size(); ++i)
+		{
+			if (m_bench[i].isSummaryRow) continue;
+
+			float y = kBenchTopY - kBenchStepY * (float)(i + 1);
+			Vector2 cardCenter(kBenchX + 130.0f, y - kBenchStepY * 0.5f + 6.0f);
+			Vector2 cardSize(268.0f, kBenchStepY - 4.0f);
+
+			bool selected = m_benchFocused && ((int)i == m_benchCursorIndex);
+			bool hovered = ((int)i == m_benchHoveredIndex);
+			Vector4 borderColor = selected ? UIStyle::kSelectedBorderColor
+				: hovered ? UIStyle::kHoveredBorderColor : UIStyle::kPanelBorderColor;
+			float borderThickness = selected ? UIStyle::kSelectedBorderThickness : UIStyle::kPanelBorderThickness;
+
+			m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor, borderColor, borderThickness, kCenterPivot);
+		}
+	}
+	else if (m_mode == Mode::Combat && m_rectRenderer != nullptr)
 	{
 		for (const auto& bar : m_bars)
 		{
 			if (!bar.onScreen || !bar.alive) continue;
 
-			// HPバー: 背景 → HP前景(左詰め) → シールド前景(HP前景の右に隣接)。
+			// HPバー: 背景(小カード枠付き) → HP前景(左詰め) → シールド前景(HP前景の右に隣接)。
+			// 3Dシーン上のオーバーレイなので過剰装飾はしない(plan.md §4-2、薄い枠を足す程度)。
 			Vector2 bgPos(bar.uiPos.x, bar.uiPos.y + kBarY);
-			m_rectRenderer->DrawRect(rc, bgPos, Vector2(kBarBgWidth, kBarBgHeight), kBarBgColor, kCenterPivot);
+			m_rectRenderer->DrawPanel(rc, bgPos, Vector2(kBarBgWidth, kBarBgHeight), kBarBgColor, UIStyle::kPanelBorderColor, 1.0f, kCenterPivot);
 
 			Vector2 hpPos(bar.uiPos.x - kBarFgWidth * 0.5f, bar.uiPos.y + kBarY);
 			float hpWidth = kBarFgWidth * bar.hpRatio;

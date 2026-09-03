@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include "UIHotRegion.h"
 
 struct Player;
 class UIRectRenderer;
@@ -22,6 +23,13 @@ public:
 	/// <param name="xpForNextLevel">次レベルに必要な経験値(LevelSystem::XPForNextLevel)。最大レベル到達時は0。</param>
 	/// <param name="rectRenderer">XPバーの塗り矩形を描く共通ヘルパー。OnRender2D用にポインタを保持する。</param>
 	void Draw(RenderContext& rc, const Player& player, int xpForNextLevel, UIRectRenderer& rectRenderer);
+
+	/// <summary>
+	/// GOLD/LV(XPバー含む)/BOARDのクリック可能矩形(ホバーのみ、クリック無反応)をoutへ追加する。
+	/// レイアウトが固定のため引数無し・描画を伴わない純粋関数。フェーズを問わず常に呼んでよい
+	/// (このHUD自体がフェーズを問わず常時表示のため)。
+	/// </summary>
+	void BuildHotRegions(UIHotRegionList& out) const;
 
 	// IRendererオーバーライド。RenderingEngineの2D描画パスから呼ばれる。
 	void OnRender2D(RenderContext& rc) override;

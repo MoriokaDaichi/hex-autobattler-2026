@@ -45,6 +45,18 @@ public:
 	void DrawRect(RenderContext& rc, const Vector2& pos, const Vector2& size, const Vector4& color,
 		const Vector2& pivot = Vector2(0.5f, 0.5f));
 
+	/// <summary>
+	/// 「枠+塗り」のカードパネルを1枚描く(ui-mouse-cardsフェーズ3、全UIレンダラー共通のカード表現。
+	/// docs/tasks/ui-mouse-cards/plan.md §4-1)。枠(一回り大きい矩形)を先に描き、内側の塗りを
+	/// あとから重ねる2枚重ね方式。TooltipUIRendererが個別に実装していたのと同じ手法を、
+	/// フェーズ3で複数のUIRendererが使うため共通ヘルパーとしてここへ集約した。
+	/// </summary>
+	/// <param name="pos">ピボット位置のUI座標(DrawRectと同じ)。</param>
+	/// <param name="size">内側(塗り)のサイズ。枠はここに borderThickness*2 を足した大きさになる。</param>
+	void DrawPanel(RenderContext& rc, const Vector2& pos, const Vector2& size,
+		const Vector4& fillColor, const Vector4& borderColor, float borderThickness,
+		const Vector2& pivot = Vector2(0.5f, 0.5f));
+
 private:
 	/// <summary>使用カーソル位置のSpriteを返す。プールが足りなければ1個生成して足す。</summary>
 	Sprite& AcquireSprite();

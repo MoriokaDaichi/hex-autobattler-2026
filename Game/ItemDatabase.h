@@ -255,6 +255,16 @@ public:
 		return nullptr;
 	}
 
+	/// <summary>
+	/// 登録済みの全レシピを返す。「この素材で作れる完成品一覧」のようにcomponentA/Bで絞り込む
+	/// 呼び出し元(ツールチップ等)向け。FindRecipeは2つ指定しての1件検索のみのため、
+	/// 全件列挙が必要な場面向けに追加した(ui-mouse-cardsフェーズ2)。
+	/// </summary>
+	const std::vector<ItemRecipe>& GetAllRecipes() const
+	{
+		return m_recipes;
+	}
+
 private:
 	std::vector<ItemDef> m_itemDefs;
 	std::vector<ItemRecipe> m_recipes;

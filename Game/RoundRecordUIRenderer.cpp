@@ -1,6 +1,8 @@
 ﻿#include "stdafx.h"
 #include "RoundRecordUIRenderer.h"
 #include "GameState.h"
+#include "UIRectRenderer.h"
+#include "UIStyle.h"
 
 namespace
 {
@@ -48,10 +50,18 @@ namespace
 		if (lossCount >= maxLosses - 1) return Vector4(1.0f, 0.4f, 0.35f, 1.0f);  // 赤
 		return Vector4(0.98f, 0.85f, 0.3f, 1.0f);                                 // 黄
 	}
+
+	// ROUND/残り/連敗/ストリークをまとめて囲むカードパネル(ui-mouse-cardsフェーズ3、plan.md §4-2)。
+	const Vector2 kCenterPivot(0.5f, 0.5f);
+	const float kPanelLeft = kX - 12.0f;
+	const float kPanelRight = 900.0f; // 画面右端(960)に余裕を残す。
+	const float kPanelTop = kTopY + 14.0f;
+	const float kPanelBottom = kTopY - kStepY * 2.0f - 22.0f;
 }
 
-void RoundRecordUIRenderer::Draw(RenderContext& rc, const GameState& gameState)
+void RoundRecordUIRenderer::Draw(RenderContext& rc, const GameState& gameState, UIRectRenderer& rectRenderer)
 {
+	m_rectRenderer = &rectRenderer;
 	m_totalRounds = GameState::kTotalRounds;
 	// Victory到達時はroundNumberがkTotalRoundsを超えて進んでいるため、表示上はクランプする。
 	m_roundNumber = gameState.roundNumber;
@@ -72,9 +82,44 @@ void RoundRecordUIRenderer::Draw(RenderContext& rc, const GameState& gameState)
 	g_renderingEngine->AddRenderObject(this);
 }
 
+void RoundRecordUIRenderer::BuildHotRegions(UIHotRegionList& out) const
+{
+	// ROUND/残りラウンド/連敗の3行分をまとめて1領域にする(kTopY〜kTopY-2*kStepY)。
+	{
+		UIHotRegion region;
+		region.kind = UIRegionKind::HudRoundDisplay;
+		region.minX = kX - 4.0f;
+		region.maxX = kX + 300.0f;
+		region.minY = kTopY - kStepY * 2.0f - 24.0f;
+		region.maxY = kTopY + 4.0f;
+		out.push_back(region);
+	}
+
+	// 連勝連敗ストリーク(残り行と同じy、kStreakCol分右にずれた位置)。上のHudRoundDisplayより
+	// 後に登録することで、この領域内はストリーク表示が優先してヒットする
+	// (UIInteractionSystemは登録順の後ろから探索するため)。
+	{
+		UIHotRegion region;
+		region.kind = UIRegionKind::HudStreakDisplay;
+		region.minX = kX + kStreakCol - 4.0f;
+		region.maxX = kX + kStreakCol + 150.0f;
+		region.minY = kTopY - kStepY - 24.0f;
+		region.maxY = kTopY - kStepY + 4.0f;
+		out.push_back(region);
+	}
+}
+
 void RoundRecordUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;
+
+	// Sprite矩形はFont::Begin()〜End()の外側でまとめて描く(§0-8)。
+	if (m_rectRenderer != nullptr)
+	{
+		Vector2 panelCenter((kPanelLeft + kPanelRight) * 0.5f, (kPanelTop + kPanelBottom) * 0.5f);
+		Vector2 panelSize(kPanelRight - kPanelLeft, kPanelTop - kPanelBottom);
+		m_rectRenderer->DrawPanel(rc, panelCenter, panelSize, UIStyle::kPanelFillColor, UIStyle::kPanelBorderColor, UIStyle::kPanelBorderThickness, kCenterPivot);
+	}
 
 	m_font.SetShadowParam(true, 2.0f, Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 	m_font.Begin(rc);

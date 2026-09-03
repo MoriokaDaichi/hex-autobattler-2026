@@ -48,6 +48,18 @@
     <ClCompile Include="CursorSelectionSystem.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="UIInteractionSystem.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="UITextUtil.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="TooltipContentBuilder.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="TooltipUIRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="UnitModelDisplay.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -119,6 +131,24 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="CursorSelectionSystem.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UIInteractionSystem.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UIHotRegion.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UITextUtil.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="TooltipContentBuilder.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="TooltipUIRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UIStyle.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="UnitModelDisplay.h">

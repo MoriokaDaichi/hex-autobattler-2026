@@ -8,7 +8,13 @@ namespace
 	// 見込んだ事前確保数。描画中(OnRender2D)の生成を避けるため多めに取る。
 	// これを超えた場合は AcquireSprite() が実行時に生成する(フォールバック)。
 	// 最大盤面(両陣営ほぼ満杯 ≒ 20体 × 最大5枚 + XPバー2枚 + 暗幕1枚 ≒ 103枚)に余裕を持たせた値。
-	const size_t kPrewarmCount = 160;
+	//
+	// [ui-mouse-cardsフェーズ3で256へ引き上げ] 全UIレンダラーのカード化(枠+塗りの2枚重ね)で
+	// 1フレームの矩形数が増えるため見積り直した(plan.md §4-4):
+	// ショップ5枠(10) + ベンチ最大8行(16) + アイテム最大9件(18) + トレイトパネル背景+行区切り(10)
+	// + 右上HUDパネル(8) + 戦闘中HPバー最大18体分(90) + ツールチップ(2) + Result/GameOver暗幕(1)
+	// ≒ 155(戦闘中/準備中は排他だが最大値で見積もり)。旧160はほぼ余裕が無かったため256へ。
+	const size_t kPrewarmCount = 256;
 
 	void InitOneSprite(Sprite& sprite)
 	{
@@ -67,4 +73,12 @@ void UIRectRenderer::DrawRect(RenderContext& rc, const Vector2& pos, const Vecto
 	sprite.Update(Vector3(pos.x, pos.y, -0.5f), Quaternion::Identity, scale, pivot);
 	sprite.SetMulColor(color);
 	sprite.Draw(rc);
+}
+
+void UIRectRenderer::DrawPanel(RenderContext& rc, const Vector2& pos, const Vector2& size,
+	const Vector4& fillColor, const Vector4& borderColor, float borderThickness, const Vector2& pivot)
+{
+	Vector2 borderSize(size.x + borderThickness * 2.0f, size.y + borderThickness * 2.0f);
+	DrawRect(rc, pos, borderSize, borderColor, pivot);
+	DrawRect(rc, pos, size, fillColor, pivot);
 }

@@ -1,6 +1,9 @@
 ﻿#include "stdafx.h"
 #include "ShopUIRenderer.h"
 #include "Player.h"
+#include "UIRectRenderer.h"
+#include "UITextUtil.h"
+#include "UIStyle.h"
 
 namespace
 {
@@ -23,8 +26,27 @@ namespace
 	const float kFeedbackScale = 0.72f;
 
 	const Vector2 kTopLeftPivot(0.0f, 1.0f); // FPS表示と同じ、テキスト左上を基準にする指定。
+	const Vector2 kCenterPivot(0.5f, 0.5f);
 
 	const float kFeedbackDuration = 3.0f;    // フィードバックがはっきり表示される秒数(経過後は薄く残す)。
+
+	// --- マウス用の常設ボタン(Reroll/BuyXP/Lock/次の戦闘へ) ---
+	// ヘッダー行(kHeaderY)から[Y]/[RB1]/[Start]のテキストヒントを外した分の右側の空きに横並びで置く
+	// (フェーズ1時点の配置。ui-mouse-cardsフェーズ3フォローアップ2でボタン位置は元に戻し、
+	// ラベル文字だけをボタン矩形の中央へ寄せた)。矢印記号はSpriteFont未収録でabortするため使わない(ASCIIのみ)。
+	const float kButtonY = kHeaderY;
+	const float kButtonStartX = -300.0f;
+	const float kButtonStepX = 160.0f;
+	const float kButtonWidth = 140.0f;
+	const float kButtonHeight = 28.0f;
+	const float kButtonLabelScale = 0.5f;
+	// ラベルを矩形中央に載せるための縦オフセット。myfile.spritefontのASCII字は cap height ≒ 33px
+	// (scale1.0基準)で、描画位置はテキスト上端(kTopLeftPivot相当)。中央に見えるよう半分下げる。
+	const float kButtonLabelYOffset = 33.0f * 0.5f * kButtonLabelScale;
+
+	const Vector4 kButtonColor(0.28f, 0.28f, 0.34f, 0.92f);
+	const Vector4 kButtonLockedColor(0.55f, 0.44f, 0.10f, 0.92f); // ロック中は琥珀寄りにして状態を示す。
+	const Vector4 kButtonLabelColor(0.92f, 0.92f, 0.95f, 1.0f);
 
 	/// <summary>
 	/// コストティアごとの色(TFTのグレー/緑/青/紫/金に寄せる)。
@@ -42,21 +64,6 @@ namespace
 		}
 	}
 
-	const wchar_t* TraitName(TraitType type)
-	{
-		switch (type)
-		{
-		case TraitType::Monster:  return L"魔物";
-		case TraitType::Human:    return L"人間";
-		case TraitType::Hero:     return L"英雄";
-		case TraitType::Warrior:  return L"戦士";
-		case TraitType::Mage:     return L"魔道士";
-		case TraitType::Guardian: return L"守護者";
-		case TraitType::Assassin: return L"暗殺者";
-		case TraitType::Ranger:   return L"狩人";
-		default:                  return L"?";
-		}
-	}
 
 	Vector4 FeedbackColor(ShopUIRenderer::FeedbackLevel level)
 	{
@@ -78,13 +85,26 @@ void ShopUIRenderer::Draw(
 	int buyXpCost,
 	int shopCursorIndex,
 	bool shopFocused,
-	bool shopLocked)
+	bool shopLocked,
+	int hoveredIndex,
+	UIRectRenderer& rectRenderer)
 {
+	m_rectRenderer = &rectRenderer;
+	m_hoveredIndex = hoveredIndex;
+
 	m_slots.clear();
 	m_slots.reserve(shop.size());
 	for (const UnitDef* def : shop)
 	{
-		if (def == nullptr) continue;
+		if (def == nullptr)
+		{
+			// 購入済みで空になった枠。位置を詰めず(indexがショップ枠番号と一致するようにする)、
+			// カード背景だけ描く空スロットとして積む(ui-mouse-cardsフェーズ3フォローアップ: 是正4)。
+			SlotView emptyView;
+			emptyView.empty = true;
+			m_slots.push_back(std::move(emptyView));
+			continue;
+		}
 
 		SlotView view;
 		wchar_t nameBuf[64];
@@ -99,7 +119,7 @@ void ShopUIRenderer::Draw(
 		for (size_t t = 0; t < def->traits.size() && t < kMaxShownTraits; ++t)
 		{
 			if (t > 0) view.traits += L"/";
-			view.traits += TraitName(def->traits[t]);
+			view.traits += UITextUtil::TraitName(def->traits[t]);
 		}
 		if (def->traits.size() > kMaxShownTraits) view.traits += L"+";
 
@@ -146,6 +166,48 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;
 
+	// --- マウス用の常設ボタン + 5枠のカード背景。Font::Begin()より前にまとめて描く
+	// (Sprite矩形はSpriteBatchの状態と競合するため。docs/tasks/ui-sprite-bars/plan.md §0-8)。
+	if (m_rectRenderer != nullptr)
+	{
+		auto drawButton = [&](int slotIndex, const Vector4& fillColor)
+		{
+			Vector2 pos(kButtonStartX + kButtonStepX * (float)slotIndex, kButtonY);
+			m_rectRenderer->DrawPanel(rc, pos, Vector2(kButtonWidth, kButtonHeight),
+				fillColor, UIStyle::kPanelBorderColor, UIStyle::kPanelBorderThickness, kCenterPivot);
+		};
+
+		drawButton(0, kButtonColor);                                    // Reroll
+		drawButton(1, kButtonColor);                                    // BuyXP
+		drawButton(2, m_shopLocked ? kButtonLockedColor : kButtonColor); // Lock
+		drawButton(3, kButtonColor);                                    // NextPhase
+
+		// ショップ5枠のカード(ui-mouse-cardsフェーズ3、plan.md §4-2)。枠色はコストティア色、
+		// 選択中(キーボード/パッド)は太く金色、ホバー中(マウス)は水色でハイライトする。
+		for (size_t i = 0; i < m_slots.size(); ++i)
+		{
+			float slotX = kSlotStartX + kSlotStepX * (float)i;
+			Vector2 cardCenter(slotX + kSlotStepX * 0.5f - 20.0f, (kNameY + kDetailY) * 0.5f - 12.0f);
+			Vector2 cardSize(kSlotStepX - 30.0f, (kNameY - kDetailY) + 40.0f);
+
+			if (m_slots[i].empty)
+			{
+				// 空き枠: カード背景のみ(中立の枠色、選択/ホバーの強調もしない)。
+				m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor,
+					UIStyle::kPanelBorderColor, UIStyle::kPanelBorderThickness, kCenterPivot);
+				continue;
+			}
+
+			bool selected = m_shopFocused && ((int)i == m_cursorIndex);
+			bool hovered = ((int)i == m_hoveredIndex);
+			Vector4 borderColor = selected ? UIStyle::kSelectedBorderColor
+				: hovered ? UIStyle::kHoveredBorderColor : CostTierColor(m_slots[i].cost);
+			float borderThickness = selected ? UIStyle::kSelectedBorderThickness : UIStyle::kPanelBorderThickness;
+
+			m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor, borderColor, borderThickness, kCenterPivot);
+		}
+	}
+
 	// 3Dシーンの上に重なっても読めるよう、影付きで描画する。
 	m_font.SetShadowParam(true, 2.0f, Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 	m_font.Begin(rc);
@@ -161,13 +223,14 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 			color, 0.0f, kFeedbackScale, kTopLeftPivot);
 	}
 
-	// --- ヘッダー行(所持ゴールド / レベル・XP / 操作ガイド) ---
+	// --- ヘッダー行(所持ゴールド / レベル・XP) ---
+	// 従来の"[Y] Reroll -2G [RB1] BuyXP -4G [Start] Lock"ヒットは、実際にクリックできる
+	// ボタン(下記)へ置き換えたため、テキストからは外す(情報の二重管理を避ける)。
 	{
-		wchar_t buf[224];
-		swprintf_s(buf,
-			L"SHOP%ls   Gold %d   Lv %d (XP %d/%d)   [Y] Reroll -%dG   [RB1] BuyXP -%dG   [Start] Lock",
+		wchar_t buf[128];
+		swprintf_s(buf, L"SHOP%ls   Gold %d   Lv %d (XP %d/%d)",
 			m_shopLocked ? L" [LOCKED]" : L"",
-			m_gold, m_level, m_xp, m_xpForNextLevel, m_rerollCost, m_buyXpCost);
+			m_gold, m_level, m_xp, m_xpForNextLevel);
 
 		// ロック中はヘッダーを金色にして状態が一目で分かるようにする。
 		Vector4 headerColor = m_shopLocked
@@ -176,10 +239,36 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 		m_font.Draw(buf, Vector2(kLeftX, kHeaderY), headerColor, 0.0f, kHeaderScale, kTopLeftPivot);
 	}
 
+	// --- ボタンのラベル(矩形は上でFont::Begin()より前に描画済み) ---
+	{
+		auto drawLabel = [&](int slotIndex, const wchar_t* text)
+		{
+			// ラベルをボタン矩形の中央(縦横)に載せる。横は実測幅(UITextUtil::EstimateTextWidth、
+			// 半角22px/全角44px)の半分だけ中心から左へ、縦はcap heightの半分だけ上端から下げる。
+			float cx = kButtonStartX + kButtonStepX * (float)slotIndex;
+			float labelWidth = UITextUtil::EstimateTextWidth(text, kButtonLabelScale);
+			Vector2 pos(cx - labelWidth * 0.5f, kButtonY + kButtonLabelYOffset);
+			m_font.Draw(text, pos, kButtonLabelColor, 0.0f, kButtonLabelScale, kTopLeftPivot);
+		};
+
+		wchar_t rerollLabel[32];
+		swprintf_s(rerollLabel, L"Reroll -%dG", m_rerollCost);
+		drawLabel(0, rerollLabel);
+
+		wchar_t buyXpLabel[32];
+		swprintf_s(buyXpLabel, L"BuyXP -%dG", m_buyXpCost);
+		drawLabel(1, buyXpLabel);
+
+		drawLabel(2, m_shopLocked ? L"Locked" : L"Lock");
+		drawLabel(3, L"Next Round");
+	}
+
 	// --- 5枠のカード(名前行 + 詳細行の2行) ---
 	for (size_t i = 0; i < m_slots.size(); ++i)
 	{
 		const SlotView& slot = m_slots[i];
+		if (slot.empty) continue; // 空き枠は文字を描かない(カード背景は上で描画済み)。
+
 		float slotX = kSlotStartX + kSlotStepX * (float)i;
 
 		bool selected = m_shopFocused && ((int)i == m_cursorIndex);
@@ -206,4 +295,43 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 	}
 
 	m_font.End(rc);
+}
+
+void ShopUIRenderer::BuildHotRegions(const std::vector<const UnitDef*>& shop, UIHotRegionList& out) const
+{
+	// 5枠のショップカード。名前行(kNameY)〜詳細行(kDetailY)を覆う矩形(実機で要微調整。
+	// docs/tasks/ui-mouse-cards/plan.md §6-1参照)。
+	for (size_t i = 0; i < shop.size() && i < 5; ++i)
+	{
+		if (shop[i] == nullptr) continue;
+
+		float slotX = kSlotStartX + kSlotStepX * (float)i;
+
+		UIHotRegion region;
+		region.kind = UIRegionKind::ShopSlot;
+		region.index = (int)i;
+		region.minX = slotX - 10.0f;
+		region.maxX = slotX + kSlotStepX - 20.0f;
+		region.maxY = kNameY + 4.0f;
+		region.minY = kDetailY - 28.0f;
+		out.push_back(region);
+	}
+
+	// 常設ボタン(Reroll/BuyXP/Lock/NextPhase)。shopが空でも押せるようにする(ロック解除等)。
+	auto addButton = [&](int slotIndex, UIRegionKind kind)
+	{
+		float cx = kButtonStartX + kButtonStepX * (float)slotIndex;
+		UIHotRegion region;
+		region.kind = kind;
+		region.minX = cx - kButtonWidth * 0.5f;
+		region.maxX = cx + kButtonWidth * 0.5f;
+		region.minY = kButtonY - kButtonHeight * 0.5f;
+		region.maxY = kButtonY + kButtonHeight * 0.5f;
+		out.push_back(region);
+	};
+
+	addButton(0, UIRegionKind::RerollButton);
+	addButton(1, UIRegionKind::BuyXpButton);
+	addButton(2, UIRegionKind::LockButton);
+	addButton(3, UIRegionKind::NextPhaseButton);
 }
