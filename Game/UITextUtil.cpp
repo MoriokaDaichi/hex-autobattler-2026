@@ -44,4 +44,14 @@ namespace UITextUtil
 		default:                  return L"?";
 		}
 	}
+
+	float EstimateTextWidth(const std::wstring& text, float scale)
+	{
+		float widthAtScale1 = 0.0f;
+		for (wchar_t ch : text)
+		{
+			widthAtScale1 += (ch > 0x00FF) ? 44.0f : 22.0f;
+		}
+		return widthAtScale1 * scale;
+	}
 }

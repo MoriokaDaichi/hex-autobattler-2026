@@ -3,6 +3,7 @@
 #include "Player.h"
 #include "UIRectRenderer.h"
 #include "UIStyle.h"
+#include "UITextUtil.h"
 
 namespace
 {
@@ -14,7 +15,9 @@ namespace
 
 	// 盤面 使用/上限 は行を増やさず GOLD 行と同じ y に x をずらして併記する
 	// (下段の RoundRecordUIRenderer / ItemInventoryUIRenderer と縦位置を取り合わないため)。
-	const float kBoardCol = 250.0f;
+	// 214 まで詰めて "BOARD 10/10" でも画面右端(960)手前に収まるようにした
+	// (ui-mouse-cardsフェーズ3フォローアップ: F5フィードバック是正3)。
+	const float kBoardCol = 214.0f;
 
 	const float kGoldScale = 0.62f;
 	const float kLevelScale = 0.58f;
@@ -38,9 +41,14 @@ namespace
 	const Vector4 kXPBarFgColor(0.55f, 0.85f, 1.0f, 1.0f); // 水色寄り(kLevelColorと同系)。
 
 	// GOLD/BOARD行 + LV/XP行をまとめて囲むカードパネル(ui-mouse-cardsフェーズ3、plan.md §4-2)。
+	// 右端は固定値だと中身(特に "BOARD n/m" 行)がカードからはみ出して切れていたため、
+	// OnRender2D側で実テキスト幅(UITextUtil::EstimateTextWidth)から算出する。ここはその下限と
+	// 画面端クランプの値だけ持つ(ui-mouse-cardsフェーズ3フォローアップ: F5フィードバック是正3)。
 	const Vector2 kCenterPivot(0.5f, 0.5f);
 	const float kPanelLeft = kX - 12.0f;
-	const float kPanelRight = 900.0f; // 画面右端(960)に余裕を残す。
+	const float kPanelRightMin = 820.0f;  // 中身が短くてもこれ以上は縮めない。
+	const float kPanelRightMax = 952.0f;  // 画面右端(960)手前でクランプ。
+	const float kPanelContentPadX = 14.0f; // 最も右に伸びるテキストの右端 + この余白をパネル右端にする。
 	const float kPanelTop = kGoldY + 16.0f;
 	const float kPanelBottom = kLevelY - 24.0f;
 }
@@ -99,11 +107,40 @@ void PlayerStatusUIRenderer::OnRender2D(RenderContext& rc)
 {
 	if (!m_hasData) return;
 
+	// 表示する3行を先に組み立て、実テキスト幅からパネル右端を決める(中身に追従させることで
+	// "BOARD n/m" 等がカードからはみ出さないようにする。F5フィードバック是正3)。
+	wchar_t goldLine[32];
+	swprintf_s(goldLine, L"GOLD  %d", m_gold);
+
+	wchar_t boardLine[32];
+	swprintf_s(boardLine, L"BOARD  %d/%d", m_boardCount, m_maxBoardSize);
+
+	wchar_t xpLine[32];
+	if (m_xpForNextLevel <= 0)
+	{
+		// kMaxLevel到達時はLevelSystem::XPForNextLevelが0を返す(それ以上レベルアップしない)。
+		swprintf_s(xpLine, L"(MAX)");
+	}
+	else
+	{
+		swprintf_s(xpLine, L"%d/%d", m_xp, m_xpForNextLevel);
+	}
+
+	auto widen = [](float& acc, float candidate) { if (candidate > acc) acc = candidate; };
+	float contentRight = kX + UITextUtil::EstimateTextWidth(goldLine, kGoldScale);
+	widen(contentRight, kX + kBoardCol + UITextUtil::EstimateTextWidth(boardLine, kBoardScale));
+	widen(contentRight, kXPBarX + kXPBarBgWidth + 10.0f + UITextUtil::EstimateTextWidth(xpLine, kLevelScale));
+	widen(contentRight, kXPBarX + kXPBarBgWidth); // XPバー背景の右端。
+
+	float panelRight = contentRight + kPanelContentPadX;
+	if (panelRight < kPanelRightMin) panelRight = kPanelRightMin;
+	if (panelRight > kPanelRightMax) panelRight = kPanelRightMax;
+
 	// 矩形(Sprite)はFont::Begin()〜End()の外側で先に描き終える(plan.md §0-8)。
 	if (m_rectRenderer != nullptr)
 	{
-		Vector2 panelCenter((kPanelLeft + kPanelRight) * 0.5f, (kPanelTop + kPanelBottom) * 0.5f);
-		Vector2 panelSize(kPanelRight - kPanelLeft, kPanelTop - kPanelBottom);
+		Vector2 panelCenter((kPanelLeft + panelRight) * 0.5f, (kPanelTop + kPanelBottom) * 0.5f);
+		Vector2 panelSize(panelRight - kPanelLeft, kPanelTop - kPanelBottom);
 		m_rectRenderer->DrawPanel(rc, panelCenter, panelSize, UIStyle::kPanelFillColor, UIStyle::kPanelBorderColor, UIStyle::kPanelBorderThickness, kCenterPivot);
 	}
 	if (m_rectRenderer != nullptr && m_xpForNextLevel > 0)
@@ -119,13 +156,9 @@ void PlayerStatusUIRenderer::OnRender2D(RenderContext& rc)
 	m_font.SetShadowParam(true, 2.0f, Vector4(0.0f, 0.0f, 0.0f, 1.0f));
 	m_font.Begin(rc);
 
-	wchar_t goldLine[32];
-	swprintf_s(goldLine, L"GOLD  %d", m_gold);
 	m_font.Draw(goldLine, Vector2(kX, kGoldY), kGoldColor, 0.0f, kGoldScale, kTopLeftPivot);
 
 	// 盤面 使用/上限。GOLD行と同じyに併記。上限到達時は警告色。
-	wchar_t boardLine[32];
-	swprintf_s(boardLine, L"BOARD  %d/%d", m_boardCount, m_maxBoardSize);
 	const Vector4& boardColor = (m_boardCount >= m_maxBoardSize) ? kBoardFullColor : kLevelColor;
 	m_font.Draw(boardLine, Vector2(kX + kBoardCol, kGoldY), boardColor, 0.0f, kBoardScale, kTopLeftPivot);
 
@@ -133,17 +166,7 @@ void PlayerStatusUIRenderer::OnRender2D(RenderContext& rc)
 	swprintf_s(levelLine, L"LV %d", m_level);
 	m_font.Draw(levelLine, Vector2(kX, kLevelY), kLevelColor, 0.0f, kLevelScale, kTopLeftPivot);
 
-	// XPバー(矩形)は上で描画済み。バーの右側に数値のみ添える。
-	wchar_t xpLine[32];
-	if (m_xpForNextLevel <= 0)
-	{
-		// kMaxLevel到達時はLevelSystem::XPForNextLevelが0を返す(それ以上レベルアップしない)。
-		swprintf_s(xpLine, L"(MAX)");
-	}
-	else
-	{
-		swprintf_s(xpLine, L"%d/%d", m_xp, m_xpForNextLevel);
-	}
+	// XPバー(矩形)は上で描画済み。バーの右側に数値のみ添える(xpLineは冒頭で組み立て済み)。
 	m_font.Draw(xpLine, Vector2(kXPBarX + kXPBarBgWidth + 10.0f, kLevelY), kLevelColor, 0.0f, kLevelScale, kTopLeftPivot);
 
 	m_font.End(rc);

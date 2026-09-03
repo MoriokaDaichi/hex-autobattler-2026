@@ -86,6 +86,7 @@ private:
 		int cost = 0;
 		int baseHP = 0;
 		int baseAttack = 0;
+		bool empty = false; // 購入済みで空になった枠(カード背景のみ描画し、名前/ステータス/トレイトは出さない)。
 	};
 
 	Font m_font;

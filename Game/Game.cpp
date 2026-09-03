@@ -379,6 +379,9 @@ void Game::Update()
 
 				if (success)
 				{
+					// 買った枠は空にする(TFT標準。リロール/次ラウンドのRollShopで再補充される)。
+					m_currentShop[shopIndex] = nullptr;
+
 					wchar_t fb[128];
 					swprintf_s(fb, L"購入: %hs  (-%dG)", target->name.c_str(), target->cost);
 					m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
@@ -420,6 +423,9 @@ void Game::Update()
 
 					if (success)
 					{
+						// 買った枠は空にする(TFT標準。リロール/次ラウンドのRollShopで再補充される)。
+						m_currentShop[leftClicked.index] = nullptr;
+
 						wchar_t fb[128];
 						swprintf_s(fb, L"購入: %hs  (-%dG)", target->name.c_str(), target->cost);
 						m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);

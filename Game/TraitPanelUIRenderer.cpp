@@ -18,7 +18,10 @@ namespace
 	// (ui-mouse-cardsフェーズ3、plan.md §4-3。以前は固定値-70でベンチ7〜8件で衝突していた)。
 	const float kX = BoardUIRenderer::kBenchX;
 	const float kTopY = BoardUIRenderer::kBenchPanelBottomY - 40.0f;
-	const float kStepY = 24.0f;
+	// 行間はタイトル+8トレイト行がベンチパネル下端〜SHOPヘッダー行(ShopUIRendererのkFeedbackY≒-330)の
+	// 隙間に収まるよう圧縮する(以前は24でパネル下端が-368付近まで伸び、SHOPヘッダー行と重なっていた。
+	// ui-mouse-cardsフェーズ3フォローアップ: F5フィードバック是正1)。17なら下端≒-305で約25pxの余白が残る。
+	const float kStepY = 17.0f;
 
 	const float kTitleScale = 0.5f;
 	const float kRowScale = 0.42f;

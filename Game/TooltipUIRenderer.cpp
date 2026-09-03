@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "TooltipUIRenderer.h"
 #include "UIRectRenderer.h"
+#include "UITextUtil.h"
 
 namespace
 {
@@ -11,14 +12,12 @@ namespace
 	const float kTextScale = 0.46f;
 	const float kTitleScale = 0.52f;
 
-	// MeasureString相当が無いため、1文字あたりの見た目幅を概算する。ResultUIRendererの
-	// CenteredStartXで校正した「23px(半角換算、スケール1.0基準)」を出発点にしていたが、
-	// 実機検証(F5)でGOLD等の短い1行テキストがこの見積りでは実描画幅より狭くなり、
-	// パネル右端を画面端にピン留めしてもテキスト自体が画面外へはみ出して切れる不具合が出た。
-	// ツールチップは「多少大きく見積もって余白が広がる」方が「切れる」より安全なため、
-	// 過大見積り側に倒す(係数を上げる+最小幅フロアを設ける)。
-	const float kApproxCharWidthAtScale1 = 30.0f; // 23 -> 30(実機検証結果を受けて引き上げ)。
-	const float kMinLineWidthPx = 140.0f;         // 短い1行でも最低限これだけの幅を確保する。
+	// 行幅は UITextUtil::EstimateTextWidth(myfile.spritefontの実測advance: 半角22px/全角44px)で
+	// 正確に見積もる。以前は1字30pxの当て推量で、係数を上げてもGOLD等の短い行がパネルからはみ出して
+	// 切れる不具合が残っていた(ui-mouse-cardsフェーズ3フォローアップ: F5フィードバック是正3、要対応3と同根)。
+	// 実測ベースに影/カーニングのブレ分の小さめの安全係数だけ掛ける。
+	const float kWidthSafetyFactor = 1.06f;
+	const float kMinLineWidthPx = 120.0f; // 短い1行でも最低限これだけの幅を確保する。
 
 	const Vector2 kTopLeftPivot(0.0f, 1.0f);
 	const Vector2 kCenterPivot(0.5f, 0.5f);
@@ -29,18 +28,12 @@ namespace
 	const Vector4 kTitleColor(1.0f, 0.92f, 0.6f, 1.0f);
 	const Vector4 kBodyColor(0.88f, 0.90f, 0.94f, 1.0f);
 
-	// 半角=1、全角(0x00A0を超えるほぼ全ての文字)=2として、見た目の文字数を概算する。
 	// 空でない行はkMinLineWidthPxを下限にする(短い1行の過小見積り対策)。
 	float EstimateWidth(const std::wstring& text, float scale)
 	{
 		if (text.empty()) return 0.0f;
 
-		float count = 0.0f;
-		for (wchar_t ch : text)
-		{
-			count += (ch > 0x00FF) ? 2.0f : 1.0f;
-		}
-		float width = count * kApproxCharWidthAtScale1 * scale;
+		float width = UITextUtil::EstimateTextWidth(text, scale) * kWidthSafetyFactor;
 
 		float minWidth = kMinLineWidthPx * scale;
 		return (width < minWidth) ? minWidth : width;

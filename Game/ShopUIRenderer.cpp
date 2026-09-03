@@ -31,11 +31,13 @@ namespace
 	const float kFeedbackDuration = 3.0f;    // フィードバックがはっきり表示される秒数(経過後は薄く残す)。
 
 	// --- マウス用の常設ボタン(Reroll/BuyXP/Lock/次の戦闘へ) ---
-	// ヘッダー行(kHeaderY)から[Y]/[RB1]/[Start]のテキストヒントを外した分、右側に空きができるため
-	// 同じ行に横並びで配置する(docs/tasks/ui-mouse-cards/plan.md §2-3。矢印記号はFontEngineの
-	// SpriteFontに無いグリフでabortするため使わない/使う場合はASCIIのみ)。
-	const float kButtonY = kHeaderY;
-	const float kButtonStartX = -300.0f;
+	// 4ボタンの合計幅(centerが -240,-80,80,240 → 外縁 ±310)がUI空間の x=0 を中心に対称になるよう
+	// 配置し、Yは画面下部の混雑(ショップカード kNameY≒-410 / SHOPヘッダー行 kHeaderY≒-368 /
+	// フィードバック行 kFeedbackY≒-330 / ツールチップ帯)を避けて一段上へ置く
+	// (ui-mouse-cardsフェーズ3フォローアップ: F5フィードバック是正2。以前は左下寄りでツールチップや
+	// ショップカードと干渉していた)。矢印記号はSpriteFont未収録でabortするため使わない(ASCIIのみ)。
+	const float kButtonY = -300.0f;
+	const float kButtonStartX = -240.0f;
 	const float kButtonStepX = 160.0f;
 	const float kButtonWidth = 140.0f;
 	const float kButtonHeight = 28.0f;
@@ -93,7 +95,15 @@ void ShopUIRenderer::Draw(
 	m_slots.reserve(shop.size());
 	for (const UnitDef* def : shop)
 	{
-		if (def == nullptr) continue;
+		if (def == nullptr)
+		{
+			// 購入済みで空になった枠。位置を詰めず(indexがショップ枠番号と一致するようにする)、
+			// カード背景だけ描く空スロットとして積む(ui-mouse-cardsフェーズ3フォローアップ: 是正4)。
+			SlotView emptyView;
+			emptyView.empty = true;
+			m_slots.push_back(std::move(emptyView));
+			continue;
+		}
 
 		SlotView view;
 		wchar_t nameBuf[64];
@@ -179,6 +189,14 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 			Vector2 cardCenter(slotX + kSlotStepX * 0.5f - 20.0f, (kNameY + kDetailY) * 0.5f - 12.0f);
 			Vector2 cardSize(kSlotStepX - 30.0f, (kNameY - kDetailY) + 40.0f);
 
+			if (m_slots[i].empty)
+			{
+				// 空き枠: カード背景のみ(中立の枠色、選択/ホバーの強調もしない)。
+				m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor,
+					UIStyle::kPanelBorderColor, UIStyle::kPanelBorderThickness, kCenterPivot);
+				continue;
+			}
+
 			bool selected = m_shopFocused && ((int)i == m_cursorIndex);
 			bool hovered = ((int)i == m_hoveredIndex);
 			Vector4 borderColor = selected ? UIStyle::kSelectedBorderColor
@@ -245,6 +263,8 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 	for (size_t i = 0; i < m_slots.size(); ++i)
 	{
 		const SlotView& slot = m_slots[i];
+		if (slot.empty) continue; // 空き枠は文字を描かない(カード背景は上で描画済み)。
+
 		float slotX = kSlotStartX + kSlotStepX * (float)i;
 
 		bool selected = m_shopFocused && ((int)i == m_cursorIndex);
