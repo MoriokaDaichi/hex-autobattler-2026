@@ -5,9 +5,15 @@
 namespace
 {
 	// ★1基準の表示スケール。board-layout-rework で「1体が概ね1マスに収まり隣と重ならない」よう
-	// 10.0 → 5.0 に縮小(F5で 4.5〜5.5 を微調整する出発値)。頭上バーのYオフセット
-	// (BoardUIRenderer::kBarWorldY)もこれに追随して下げている。
-	const Vector3 kUnitModelScale(5.0f, 5.0f, 5.0f);
+	// 10.0 → 4.0 に縮小(F5是正2で 5→4。さらに 3.5〜4.5 を微調整する出発値)。頭上バーの
+	// Yオフセット(BoardUIRenderer::kBarWorldY)もこれに追随して調整している。
+	const Vector3 kUnitModelScale(4.0f, 4.0f, 4.0f);
+
+	// モデル原点が中心にあり、そのまま y=0 に置くと下半分がヘックス平面へめり込む。
+	// 足元が平面に乗るよう、モデル高の概ね半分だけ Y へ持ち上げる。
+	// 実効スケール(kUnitModelScale × 星倍率)に比例させる。scale=1 相当での半モデル高の目安値で、
+	// F5 反復前提の出発値(埋まる/浮くなら増減する。scale 4 で +40 相当)。
+	const float kUnitModelHalfHeightAtScale1 = 10.0f;
 
 	// 星レベルに応じた表示スケール倍率。★が上がるほど一回り大きく見せて盤面上で区別できるようにする。
 	// StarLevelSystem::GetStarMultiplier(★1比 約1.8倍/★)はステータス用で、そのまま使うと
@@ -47,6 +53,9 @@ void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
 		float starScale = GetStarModelScaleMultiplier(unit.starLevel);
 		Vector3 modelScale = kUnitModelScale;
 		modelScale.Scale(starScale);
+
+		// 足元がヘックス平面(y=0)に乗るよう、実効スケールに比例して持ち上げる(めり込み対策)。
+		worldPos.y += kUnitModelHalfHeightAtScale1 * kUnitModelScale.x * starScale;
 
 		modelRender.SetTRS(worldPos, Quaternion::Identity, modelScale);
 		modelRender.Update();

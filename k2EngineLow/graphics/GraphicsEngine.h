@@ -175,6 +175,17 @@ namespace nsK2EngineLow {
 		{
 			return m_raytracingEngine.GetOutputTexture();
 		}
+		// [board-layout-rework] Instances currently registered in the raytracing world.
+		// When 0, raytracing::Engine::Dispatch() returns early and the output texture / TLAS
+		// keep their previous contents. Callers use this to skip sampling stale raytracing
+		// results (old unit-model reflections would otherwise linger after the board is cleared).
+		int GetNumRaytracingWorldInstance() const
+		{
+			if (!m_isPossibleRaytracing) {
+				return 0;
+			}
+			return m_raytracingEngine.GetNumInstance();
+		}
 		/// <summary>
 		/// 3DModelをレイトレワールドに登録。
 		/// </summary>
