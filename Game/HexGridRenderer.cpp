@@ -8,7 +8,10 @@ namespace
 	const Vector4 kGridLineColor(0.35f, 0.6f, 0.7f, 1.0f);
 	const Vector4 kAllyZoneColor(0.2f, 0.5f, 0.35f, 1.0f);
 	const Vector4 kEnemyZoneColor(0.55f, 0.25f, 0.25f, 1.0f);
-	const Vector4 kNeutralZoneColor(0.3f, 0.45f, 0.4f, 1.0f);
+	// r2(プレイヤー最前列)とr3(敵最前列)の境目に引く区切りライン色。座標ギャップは設けず
+	// (常に1つの6行×9列の戦場)、色分けとこの明るいラインだけで2陣営を視覚的に分ける
+	// (board-layout-rework、ユーザー確定「ギャップ無し」)。
+	const Vector4 kZoneBoundaryColor(0.9f, 0.85f, 0.55f, 1.0f);
 	const float kEmptyTileAlpha = 0.35f;
 	const float kOccupiedTileAlpha = 0.55f;
 
@@ -214,6 +217,21 @@ void HexGridRenderer::BuildGridLines()
 			}
 		}
 	}
+
+	// r2/r3 の境界(プレイヤー陣地と敵陣地の境目)を明るいラインで強調する。
+	// 敵最前列 (q, kAllyZoneMaxR+1) の"プレイヤー側を向いた2辺"(pointy-topの下端: corner4-5, 5-0)を
+	// なぞると、ちょうど2陣営の継ぎ目になる。
+	const int boundaryR = kAllyZoneMaxR + 1;
+	for (int q = kMinQ; q <= kMaxQ; ++q) {
+		Vector3 center = CalcTileCenter(q, boundaryR);
+		Vector3 c4 = center + HexCornerOffset(kHexSize, 4);
+		Vector3 c5 = center + HexCornerOffset(kHexSize, 5);
+		Vector3 c0 = center + HexCornerOffset(kHexSize, 0);
+		m_lineVertices.push_back({ c4, kZoneBoundaryColor });
+		m_lineVertices.push_back({ c5, kZoneBoundaryColor });
+		m_lineVertices.push_back({ c5, kZoneBoundaryColor });
+		m_lineVertices.push_back({ c0, kZoneBoundaryColor });
+	}
 }
 
 void HexGridRenderer::BuildTileFills(const GameState& gameState)
@@ -227,13 +245,8 @@ void HexGridRenderer::BuildTileFills(const GameState& gameState)
 			HexCoord coord(q, r);
 			Vector3 center = CalcTileCenter(q, r);
 
-			Vector4 zoneColor = kNeutralZoneColor;
-			if (q >= kAllyZoneMinQ && q <= kAllyZoneMaxQ) {
-				zoneColor = kAllyZoneColor;
-			}
-			else if (q >= 6) {
-				zoneColor = kEnemyZoneColor;
-			}
+			// r0-2=プレイヤー陣地 / r3-5=敵陣地(中立ゾーンは廃止)。
+			Vector4 zoneColor = (r <= kAllyZoneMaxR) ? kAllyZoneColor : kEnemyZoneColor;
 
 			bool occupied = false;
 			for (const auto& unit : player.board) {

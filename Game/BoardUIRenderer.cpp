@@ -7,8 +7,9 @@
 
 namespace
 {
-	// HPバーを浮かべる高さ(ユニットのワールド座標からの+Yオフセット)。モデルは約10倍スケールで大きい。
-	const float kBarWorldY = 150.0f;
+	// HPバーを浮かべる高さ(ユニットのワールド座標からの+Yオフセット)。
+	// board-layout-rework でモデルスケールを 10→5 に縮小したのに追随して 150→75(F5で微調整する出発値)。
+	const float kBarWorldY = 75.0f;
 
 	const Vector2 kCenterPivot(0.5f, 0.5f);   // テキストの中心をアンカーにする。
 	const Vector2 kTopLeftPivot(0.0f, 1.0f);  // ベンチ一覧用(左上アンカー、FPS表示と同じ)。

@@ -42,12 +42,13 @@ bool Game::Start()
 	m_hexGridRenderer.Init();
 	m_uiRectRenderer.Init();
 
-	// 盤面(ヘックスグリッド q:0-8, r:0-2、HexGridRenderer::CalcTileCenterの座標系で
-	// 概ねX:±430, Z:±125に収まる)全体が、自陣・中立・敵陣とも余裕を持って画角に入るよう、
-	// 盤面中心(ワールド原点)を見下ろす角度・距離を大きめに取ってカメラを配置する。
-	// (ユニットモデルが等倍スケールで大きすぎる既知問題の影響も、離すことである程度緩和される)
-	g_camera3D->SetPosition({ 0.0f, 900.0f, -650.0f });
-	g_camera3D->SetTarget({ 0.0f, 0.0f, 0.0f });
+	// 盤面(ヘックスグリッド q:0-8, r:0-5 の6行×9列。HexGridRenderer::CalcTileCenterの座標系で
+	// 概ね X:±470, Z:±190 に収まる)全体が画角に入るよう、盤面中心(ワールド原点)を見下ろす角度・
+	// 距離を取ってカメラを配置する。board-layout-rework で盤面が r 方向に2倍(3行→6行)になったぶん、
+	// カメラを上げて引いた。ターゲットをわずかに +Z することで、手前のプレイヤー盤面へ画面配分を寄せる。
+	// (数値は F5 反復で微調整する出発値)
+	g_camera3D->SetPosition({ 0.0f, 1180.0f, -1000.0f });
+	g_camera3D->SetTarget({ 0.0f, 0.0f, 40.0f });
 
 	// カメラとほぼ同じ側(斜め上・やや背後)からユニット正面に光が回り込む方向に
 	// ディレクションライトを設定し、シルエット化を避けつつ陰影で立体感を出す。
@@ -106,9 +107,37 @@ void Game::InitializeNewRun()
 
 void Game::Update()
 {
-	// players[0](唯一の人間プレイヤー)の盤面(board)のユニットモデルを表示・更新する。
-	// 敵ユニットや戦闘進行自体はリアルタイム3D表示の対象外(スコープ外、別タスク)。
-	m_unitModelDisplay.Update(m_gameState.players[0]);
+	// 盤面のユニットモデル(3D)を表示・更新する。board-layout-rework:
+	//  - プレイヤー盤面(r0-2) = players[0].board
+	//  - 敵盤面(r3-5) = そのラウンドの固定編成 m_enemyPreview.board(roundNumber変化時に作り直す)
+	// Title/GameOver/Victory では両方 Clear() して、前プレイのモデルが背景に残る(ゴースト)のを防ぐ(§D)。
+	{
+		Phase modelPhase = m_gameState.currentPhase;
+		bool showBattlefieldModels =
+			(modelPhase == Phase::Preparation || modelPhase == Phase::Combat || modelPhase == Phase::Result);
+
+		if (showBattlefieldModels)
+		{
+			m_unitModelDisplay.Update(m_gameState.players[0].board);
+
+			if (m_enemyPreviewRound != m_gameState.roundNumber
+				&& m_gameState.roundNumber >= 1
+				&& m_gameState.roundNumber <= (int)m_enemyStages.size())
+			{
+				m_enemyPreview = m_enemyFactory.CreateEnemyBoard(
+					m_enemyStages[m_gameState.roundNumber - 1],
+					m_unitDatabase, m_itemDatabase, m_itemSystem);
+				m_enemyPreviewRound = m_gameState.roundNumber;
+			}
+			m_enemyModelDisplay.Update(m_enemyPreview.board);
+		}
+		else
+		{
+			m_unitModelDisplay.Clear();
+			m_enemyModelDisplay.Clear();
+			m_enemyPreviewRound = -1; // 次に Preparation へ戻ったとき確実に作り直す。
+		}
+	}
 
 	// マウス・キーボード・ゲームパッドを横断するカーソル/選択状態を更新する。
 	m_cursorSelection.Update();
@@ -137,15 +166,17 @@ void Game::Update()
 		m_itemInventoryUI.BuildHotRegions(hotRegionPlayer, m_hotRegions);
 		m_traitPanelUI.BuildHotRegions(hotRegionPlayer.board, m_traitDatabase, m_traitSystem, m_hotRegions);
 
-		// 盤面(自陣q0-2、r0-2)のヒット領域。ユニットが居るマスはBoardUnit、空きマスはBoardEmptyHex。
+		// 盤面(プレイヤー陣地 = r0-2 の全9列、計27マス)のヒット領域。
+		// ユニットが居るマスはBoardUnit、空きマスはBoardEmptyHex。
 		// 透視射影のため、等方形(正方形)の固定半径だとr(奥行き)方向にヒット矩形が大きく重なることが
-		// 実機検証で判明した(plan.md §6-1/レビュー指摘D)。異方性の固定ボックスに変更する
+		// 実機検証で判明した(ui-mouse-cards plan.md §6-1)。異方性の固定ボックスにしている
 		// (X方向はマス間の間隔が比較的一定、Y方向は奥行きで詰まって見えるぶん小さめにする)。
+		// board-layout-rework: カメラを引き・モデルを縮小したので、値は F5 で再調整する出発値。
 		const float kHexHitHalfWidth = 35.0f;
 		const float kHexHitHalfHeight = 16.0f;
-		for (int q = HexGridRenderer::kAllyZoneMinQ; q <= HexGridRenderer::kAllyZoneMaxQ; ++q)
+		for (int q = 0; q <= 8; ++q)
 		{
-			for (int r = 0; r <= 2; ++r)
+			for (int r = HexGridRenderer::kAllyZoneMinR; r <= HexGridRenderer::kAllyZoneMaxR; ++r)
 			{
 				HexCoord hex(q, r);
 				if (!HexGridRenderer::IsValidHex(hex)) continue;
@@ -553,7 +584,7 @@ void Game::Update()
 						}
 						else
 						{
-							m_shopUI.PushFeedback(L"配置できません (自陣 q0-2 のみ / 盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
+							m_shopUI.PushFeedback(L"配置できません (自陣 手前3行のみ / 盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
 						}
 					}
 					else if (m_heldBoardHexValid)
@@ -580,7 +611,7 @@ void Game::Update()
 							}
 							else
 							{
-								m_shopUI.PushFeedback(L"移動できません (自陣 q0-2 のみ / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
+								m_shopUI.PushFeedback(L"移動できません (自陣 手前3行のみ / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
 							}
 						}
 					}
@@ -725,7 +756,7 @@ void Game::Update()
 						}
 						else
 						{
-							m_shopUI.PushFeedback(L"移動できません (自陣 q0-2 のみ / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
+							m_shopUI.PushFeedback(L"移動できません (自陣 手前3行のみ / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
 						}
 					}
 				}
@@ -769,7 +800,7 @@ void Game::Update()
 				}
 				else
 				{
-					m_shopUI.PushFeedback(L"配置できません (自陣 q0-2 のみ / 盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
+					m_shopUI.PushFeedback(L"配置できません (自陣 手前3行のみ / 盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
 				}
 			}
 		}
@@ -1198,18 +1229,25 @@ void Game::Update()
 
 /// <summary>
 /// 10ラウンド分の固定敵編成を組み立てて返す。体数・コスト・スターレベル・装備が
-/// ラウンドが進むほど段階的に強くなるように設計している。配置座標は既存Bot編成と同じ
-/// HexCoord(6,0)〜(8,2)の3x3ブロックを埋める形で割り当てる。
+/// ラウンドが進むほど段階的に強くなるように設計している。
+///
+/// [board-layout-rework] 下のテーブルの HexCoord は「旧レイアウトの敵陣 q6-8 × r0-2 の3x3」
+/// 表記のまま残し、unitPlan() 内で新レイアウト(敵陣 = r3-5 × q0-8)へミラー写像する:
+///   新 = HexCoord(old.r + 3, old.q - 3)   … 旧q6(敵最前列)→新r3、旧r0-2(3幅)→新q3-5(中央寄せ)
+/// これで陣形の形はそのまま、敵盤面の中央3列に配置される(左右へ散らす調整は F5 後に別途)。
 /// </summary>
 std::vector<EnemyStage> Game::BuildEnemyStages()
 {
-	auto unitPlan = [](const std::string& name, int starLevel, HexCoord pos,
+	// 旧敵陣座標(q6-8, r0-2) → 新敵陣座標(q0-8 の中央3列, r3-5)へのミラー写像。
+	auto toNewLayout = [](HexCoord oldPos) { return HexCoord(oldPos.r + 3, oldPos.q - 3); };
+
+	auto unitPlan = [&toNewLayout](const std::string& name, int starLevel, HexCoord pos,
 		std::vector<std::string> itemComponents = {})
 	{
 		EnemyUnitPlan p;
 		p.unitName = name;
 		p.starLevel = starLevel;
-		p.position = pos;
+		p.position = toNewLayout(pos);
 		p.itemComponentNames = itemComponents;
 		return p;
 	};
@@ -1334,7 +1372,16 @@ void Game::Render(RenderContext& rc)
 
 	m_hexGridRenderer.Draw(rc, m_gameState);
 
-	m_unitModelDisplay.Draw(rc);
+	// ユニットモデル(プレイヤー盤面 + 敵盤面プレビュー)は準備/戦闘/結果でのみ描く。
+	// GameOver/Victory では描かない(前プレイのモデルが背景に残るゴースト対策。board-layout-rework §D。
+	// Title は上で early-return 済み。Update() 側でも Clear() 済みだが二重の保険)。
+	if (m_gameState.currentPhase == Phase::Preparation
+		|| m_gameState.currentPhase == Phase::Combat
+		|| m_gameState.currentPhase == Phase::Result)
+	{
+		m_unitModelDisplay.Draw(rc);
+		m_enemyModelDisplay.Draw(rc);
+	}
 
 	// 所持ゴールド・レベル/XPゲージは、フェーズを問わず常時表示する
 	// (準備フェーズ限定のShopUIRendererのヘッダー行とは別に、右上へ常設する)。

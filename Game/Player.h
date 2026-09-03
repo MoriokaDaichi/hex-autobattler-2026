@@ -62,11 +62,11 @@ struct Player
 		return true;
 	}
 
-	// プレイヤーがユニットを配置できる自陣のaxial q範囲。
-	// 盤面の区分けの正はHexGridRenderer(kAllyZoneMinQ/kAllyZoneMaxQ、0-2:自陣 / 3-5:中立 / 6-8:敵陣)。
+	// プレイヤーがユニットを配置できる自陣のaxial r範囲(board-layout-rework)。
+	// 盤面の区分けの正はHexGridRenderer(kAllyZoneMinR/kAllyZoneMaxR、r0-2:プレイヤー陣地 / r3-5:敵陣地)。
 	// HexGridRenderer.h → GameState.h → Player.h の循環includeを避けるため、同値をここへ再掲している。
-	static constexpr int kAllyZoneMinQ = 0;
-	static constexpr int kAllyZoneMaxQ = 2;
+	static constexpr int kAllyZoneMinR = 0;
+	static constexpr int kAllyZoneMaxR = 2;
 
 	bool PlaceUnitOnBoard(int benchIndex, const HexCoord& targetPos)
 	{
@@ -75,9 +75,9 @@ struct Player
 			return false; // ベンチの範囲外
 		}
 
-		if (targetPos.q < kAllyZoneMinQ || targetPos.q > kAllyZoneMaxQ)
+		if (targetPos.r < kAllyZoneMinR || targetPos.r > kAllyZoneMaxR)
 		{
-			return false; // 自陣(q0-2)以外には配置できない。
+			return false; // 自陣(手前3行 r0-2)以外には配置できない。
 		}
 
 		if ((int)board.size() >= GetMaxBoardSize())
@@ -143,7 +143,7 @@ struct Player
 
 	/// <summary>
 	/// 盤面上のユニットを from マスから to マスへ移動する。
-	/// to は自陣(q0-2)かつ空きマスであること。成功で true。
+	/// to は自陣(手前3行 r0-2)かつ空きマスであること。成功で true。
 	/// 盤面ユニット数は増減しないため GetMaxBoardSize チェックは行わない。
 	/// </summary>
 	bool MoveUnitOnBoard(const HexCoord& from, const HexCoord& to)
@@ -153,9 +153,9 @@ struct Player
 			return false; // 同じマスへの移動は無効(呼び出し側でキャンセル扱い)。
 		}
 
-		if (to.q < kAllyZoneMinQ || to.q > kAllyZoneMaxQ)
+		if (to.r < kAllyZoneMinR || to.r > kAllyZoneMaxR)
 		{
-			return false; // 自陣(q0-2)以外へは移動できない。
+			return false; // 自陣(手前3行 r0-2)以外へは移動できない。
 		}
 
 		int fromIndex = -1;
