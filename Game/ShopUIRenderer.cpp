@@ -31,17 +31,18 @@ namespace
 	const float kFeedbackDuration = 3.0f;    // フィードバックがはっきり表示される秒数(経過後は薄く残す)。
 
 	// --- マウス用の常設ボタン(Reroll/BuyXP/Lock/次の戦闘へ) ---
-	// 4ボタンの合計幅(centerが -240,-80,80,240 → 外縁 ±310)がUI空間の x=0 を中心に対称になるよう
-	// 配置し、Yは画面下部の混雑(ショップカード kNameY≒-410 / SHOPヘッダー行 kHeaderY≒-368 /
-	// フィードバック行 kFeedbackY≒-330 / ツールチップ帯)を避けて一段上へ置く
-	// (ui-mouse-cardsフェーズ3フォローアップ: F5フィードバック是正2。以前は左下寄りでツールチップや
-	// ショップカードと干渉していた)。矢印記号はSpriteFont未収録でabortするため使わない(ASCIIのみ)。
-	const float kButtonY = -300.0f;
-	const float kButtonStartX = -240.0f;
+	// ヘッダー行(kHeaderY)から[Y]/[RB1]/[Start]のテキストヒントを外した分の右側の空きに横並びで置く
+	// (フェーズ1時点の配置。ui-mouse-cardsフェーズ3フォローアップ2でボタン位置は元に戻し、
+	// ラベル文字だけをボタン矩形の中央へ寄せた)。矢印記号はSpriteFont未収録でabortするため使わない(ASCIIのみ)。
+	const float kButtonY = kHeaderY;
+	const float kButtonStartX = -300.0f;
 	const float kButtonStepX = 160.0f;
 	const float kButtonWidth = 140.0f;
 	const float kButtonHeight = 28.0f;
 	const float kButtonLabelScale = 0.5f;
+	// ラベルを矩形中央に載せるための縦オフセット。myfile.spritefontのASCII字は cap height ≒ 33px
+	// (scale1.0基準)で、描画位置はテキスト上端(kTopLeftPivot相当)。中央に見えるよう半分下げる。
+	const float kButtonLabelYOffset = 33.0f * 0.5f * kButtonLabelScale;
 
 	const Vector4 kButtonColor(0.28f, 0.28f, 0.34f, 0.92f);
 	const Vector4 kButtonLockedColor(0.55f, 0.44f, 0.10f, 0.92f); // ロック中は琥珀寄りにして状態を示す。
@@ -242,9 +243,12 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 	{
 		auto drawLabel = [&](int slotIndex, const wchar_t* text)
 		{
-			// ボタン矩形の左端付近から書き出す(MeasureString相当が無いため中央揃えはしない)。
-			float x = kButtonStartX + kButtonStepX * (float)slotIndex - kButtonWidth * 0.5f + 6.0f;
-			m_font.Draw(text, Vector2(x, kButtonY), kButtonLabelColor, 0.0f, kButtonLabelScale, Vector2(0.0f, 0.5f));
+			// ラベルをボタン矩形の中央(縦横)に載せる。横は実測幅(UITextUtil::EstimateTextWidth、
+			// 半角22px/全角44px)の半分だけ中心から左へ、縦はcap heightの半分だけ上端から下げる。
+			float cx = kButtonStartX + kButtonStepX * (float)slotIndex;
+			float labelWidth = UITextUtil::EstimateTextWidth(text, kButtonLabelScale);
+			Vector2 pos(cx - labelWidth * 0.5f, kButtonY + kButtonLabelYOffset);
+			m_font.Draw(text, pos, kButtonLabelColor, 0.0f, kButtonLabelScale, kTopLeftPivot);
 		};
 
 		wchar_t rerollLabel[32];
