@@ -132,7 +132,20 @@ void Game::Update()
 		bool showBattlefieldModels =
 			(modelPhase == Phase::Preparation || modelPhase == Phase::Combat || modelPhase == Phase::Result);
 
-		if (showBattlefieldModels)
+		// combat-movement-playback: 戦闘の再生中(sim 完了後)は CombatPlayback のユニットビューから
+		// モデルの位置・向き・アニメを駆動する。CombatPlayback の m_active が false になる(=余韻終了)
+		// フレームと、Combat フェーズを抜けて ResetBoardPositions() する処理は同じ Update() の後段で
+		// 起きるため、モデルブロックがこの条件で board 位置(sim 最終密集)を拾うことは無い。
+		bool playbackDriven = (modelPhase == Phase::Combat) && m_combatSimDone && m_combatPlayback.IsActive();
+
+		if (playbackDriven)
+		{
+			const auto& views = m_combatPlayback.GetUnitViews();
+			size_t pc = m_combatPlayback.GetPlayerViewCount();
+			m_unitModelDisplay.UpdateFromPlayback(views.data(), pc);
+			m_enemyModelDisplay.UpdateFromPlayback(views.data() + pc, views.size() - pc);
+		}
+		else if (showBattlefieldModels)
 		{
 			m_unitModelDisplay.Update(m_gameState.players[0].board);
 

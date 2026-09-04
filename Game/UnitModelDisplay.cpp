@@ -15,6 +15,19 @@ namespace
 	// F5 反復前提の出発値(埋まる/浮くなら増減する。scale 4 で +40 相当)。
 	const float kUnitModelHalfHeightAtScale1 = 10.0f;
 
+	// combat-movement-playback: 再生駆動でのモデルの向き。
+	// モデルの前方軸が tkm によって +Z / -Z のどちらか分からないため、F5 で 0 または PI を確定する出発値。
+	const float kModelYawOffsetRad = 0.0f;
+	// 向きを目標へ寄せる速さ(1フレームの Slerp 係数 = この値 * dt、1.0 で頭打ち)。
+	const float kTurnRatePerSec = 12.0f;
+
+	// アニメクリップの index(UnitModelDisplay::GetOrLoadAnimClips のロード順と一致させる)。
+	const int kClipIdle = 0;
+	const int kClipMove = 1;
+	const int kClipNormalAttack = 2;
+	const int kClipSkill = 3;
+	const int kClipDeath = 4;
+
 	// 星レベルに応じた表示スケール倍率。★が上がるほど一回り大きく見せて盤面上で区別できるようにする。
 	// StarLevelSystem::GetStarMultiplier(★1比 約1.8倍/★)はステータス用で、そのまま使うと
 	// ★3が基準の約3.24倍(=スケール32)になり1マスに収まらないため、見た目専用の控えめな値を独自に定義する。
@@ -76,6 +89,106 @@ void UnitModelDisplay::Clear()
 	m_lastBoardSignature.clear();
 }
 
+void UnitModelDisplay::RebuildIfViewsChanged(const CombatPlayback::UnitView* views, size_t count)
+{
+	std::vector<std::pair<const UnitDef*, int>> currentSignature;
+	currentSignature.reserve(count);
+	for (size_t i = 0; i < count; ++i)
+	{
+		currentSignature.push_back({ views[i].def, views[i].starLevel });
+	}
+
+	if (currentSignature == m_lastBoardSignature)
+	{
+		return; // 構成に変化なし。再構築不要。
+	}
+	m_lastBoardSignature = currentSignature;
+
+	m_displayEntries.clear();
+	m_displayEntries.reserve(count);
+	for (size_t i = 0; i < count; ++i)
+	{
+		DisplayEntry entry;
+		entry.modelRender = std::make_unique<ModelRender>();
+		std::array<AnimationClip, 5>& animClips = GetOrLoadAnimClips(views[i].def);
+		entry.modelRender->Init(views[i].def->modelPath.c_str(), animClips.data(), 5);
+		m_displayEntries.push_back(std::move(entry));
+	}
+}
+
+void UnitModelDisplay::UpdateFromPlayback(const CombatPlayback::UnitView* views, size_t count)
+{
+	RebuildIfViewsChanged(views, count);
+
+	float dt = g_gameTime->GetFrameDeltaTime();
+	float turnT = kTurnRatePerSec * dt;
+	if (turnT > 1.0f) turnT = 1.0f;
+
+	size_t numDisplayed = m_displayEntries.size();
+	if (count < numDisplayed) numDisplayed = count;
+
+	for (size_t i = 0; i < numDisplayed; ++i)
+	{
+		const CombatPlayback::UnitView& view = views[i];
+		DisplayEntry& e = m_displayEntries[i];
+		ModelRender& modelRender = *e.modelRender;
+
+		// --- 再生セッション跨ぎの状態リセット(RebuildIfViewsChanged が発火しない敗北リトライ等) ---
+		if (!view.deathAnimTriggered && e.seenDeath) { e.seenDeath = false; e.curClip = -1; }
+		if (view.attackAnimSeq < e.seenAttackSeq) e.seenAttackSeq = view.attackAnimSeq;
+
+		// --- TRS ---
+		float starScale = GetStarModelScaleMultiplier(view.starLevel);
+		Vector3 modelScale = kUnitModelScale;
+		modelScale.Scale(starScale);
+
+		Vector3 worldPos = view.worldPos;
+		worldPos.y += kUnitModelHalfHeightAtScale1 * kUnitModelScale.x * starScale;
+
+		Quaternion targetRot;
+		targetRot.SetRotationY(atan2f(view.facingDir.x, view.facingDir.z) + kModelYawOffsetRad);
+		Quaternion rot;
+		rot.Slerp(turnT, e.lastRot, targetRot);
+		e.lastRot = rot;
+
+		modelRender.SetTRS(worldPos, rot, modelScale);
+
+		// --- アニメ状態機(死亡 > 攻撃再生中 > 攻撃トリガ > 移動 > idle) ---
+		if (view.deathAnimTriggered && !e.seenDeath)
+		{
+			modelRender.PlayAnimation(kClipDeath, 0.15f);
+			e.seenDeath = true;
+			e.curClip = kClipDeath;
+		}
+		else if (view.attackAnimSeq != e.seenAttackSeq)
+		{
+			int clip = view.attackAnimIsSkill ? kClipSkill : kClipNormalAttack;
+			modelRender.PlayAnimation(clip, 0.1f);
+			e.seenAttackSeq = view.attackAnimSeq;
+			e.curClip = clip;
+		}
+		else if ((e.curClip == kClipNormalAttack || e.curClip == kClipSkill) && modelRender.IsPlayingAnimation())
+		{
+			// 攻撃モーション再生中は割り込まない。
+		}
+		else if (e.seenDeath)
+		{
+			// death クリップの最終フレームで静止。
+		}
+		else
+		{
+			int desired = view.isMoving ? kClipMove : kClipIdle;
+			if (e.curClip != desired)
+			{
+				modelRender.PlayAnimation(desired, 0.15f);
+				e.curClip = desired;
+			}
+		}
+
+		modelRender.Update();
+	}
+}
+
 void UnitModelDisplay::RebuildIfBoardChanged(const std::vector<UnitInstance>& board)
 {
 	// UnitDef*だけでなくstarLevelも含める。合成で星が上がってもUnitDef*は変わらないため、
@@ -122,5 +235,9 @@ std::array<AnimationClip, 5>& UnitModelDisplay::GetOrLoadAnimClips(const UnitDef
 	clips[2].Load(def->normalAttackAnimPath.c_str());
 	clips[3].Load(def->skillAnimPath.c_str());
 	clips[4].Load(def->deathAnimPath.c_str());
+	// idle / move はループ、attack / skill / death は単発(最終フレームで止まる)。
+	// board 駆動(準備/結果)は PlayAnimation を呼ばないのでこのフラグは影響しない。
+	clips[0].SetLoopFlag(true);
+	clips[1].SetLoopFlag(true);
 	return clips;
 }

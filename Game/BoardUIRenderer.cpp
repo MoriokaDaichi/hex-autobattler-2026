@@ -11,6 +11,9 @@ namespace
 	// board-layout-rework: モデルスケール縮小(10→4)＋足元を平面に乗せるYリフト(約+40)に追随。
 	// リフト分＋モデル高の頭上に来るよう 95(F5是正2。実機で頭とバーの隙間を見て微調整する出発値)。
 	const float kBarWorldY = 95.0f;
+	// combat-movement-playback: ユニットが移動して見えるようになり、近接戦で両陣営が隣接マスに
+	// 寄るとHPバーが横に重なる。敵側のバーだけ一段上へずらして両方読めるようにする(F5微調整前提)。
+	const float kEnemyBarYBonus = 26.0f;
 
 	const Vector2 kCenterPivot(0.5f, 0.5f);   // テキストの中心をアンカーにする。
 	const Vector2 kTopLeftPivot(0.0f, 1.0f);  // ベンチ一覧用(左上アンカー、FPS表示と同じ)。
@@ -153,7 +156,7 @@ void BoardUIRenderer::DrawCombat(RenderContext& rc, const CombatPlayback& playba
 		bar.label = v.name + StarSuffix(v.starLevel);
 
 		Vector3 world = v.worldPos;
-		world.y += kBarWorldY;
+		world.y += kBarWorldY + (v.isEnemy ? kEnemyBarYBonus : 0.0f);
 		bar.onScreen = WorldToUI(world, bar.uiPos);
 
 		m_bars.push_back(std::move(bar));

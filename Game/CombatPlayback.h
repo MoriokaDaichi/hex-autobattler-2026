@@ -4,6 +4,7 @@
 #include "CombatEvent.h"
 
 struct UnitInstance;
+struct UnitDef;
 
 /// <summary>
 /// CombatEngine::SimulateCombat(1フレームで瞬時解決)の結果を、複数フレームに渡って
@@ -13,20 +14,23 @@ struct UnitInstance;
 /// 承認済み設計:
 ///  - SimulateCombat自体は変更しない(瞬時解決のまま)。ここは結果イベント列を読むだけ。
 ///  - 同じtime値を持つイベントは同フレームでまとめて反映する(CombatEvent.h/CombatEngine.hのメモ)。
-///  - 位置はアニメーションしない。HPバーは戦闘終了時の最終位置に固定し、HP/シールドのみ時間再生する
-///    (3Dモデルの移動アニメーションは別タスク・スコープ外)。
+///  - combat-movement-playback: Move イベントに移動先が入るようになり、UnitView の worldPos を
+///    m_clock 基準で補間する。向き・アニメ状態のヒントも UnitView に持たせ、UnitModelDisplay が
+///    再生駆動でモデルを動かす。
 /// </summary>
 class CombatPlayback
 {
 public:
 	/// <summary>
-	/// 盤面UI(HPバー描画)から参照する、1ユニット分の表示用スナップショット。
+	/// 盤面UI(HPバー描画)/ 戦闘再生中のモデル表示(UnitModelDisplay)から参照する、
+	/// 1ユニット分の表示用スナップショット。
 	/// </summary>
 	struct UnitView
 	{
 		std::wstring name;
 		int starLevel = 1;
-		Vector3 worldPos;        // HPバーを浮かべる盤面上のワールド座標(戦闘終了時の位置、y=0)。
+		const UnitDef* def = nullptr; // モデル/アニメのロード・対応付け用(combat-movement-playback)。
+		Vector3 worldPos;        // 現在の表示ワールド座標(y=0)。毎 Update() で補間結果に更新。
 		int displayHP = 0;       // 再生クロックに応じて増減する表示用HP。
 		int maxHP = 1;           // バーの割合計算用。
 		int displayShield = 0;   // 表示用シールド量。
@@ -34,6 +38,20 @@ public:
 		int skillThreshold = 1;  // ゲージが満ちる閾値(バーの割合計算用、戦闘中は不変)。
 		bool alive = true;
 		bool isEnemy = false;
+
+		// --- 位置補間(すべて m_clock = 戦闘内時刻 基準) ---
+		Vector3 homeWorldPos;          // homePosition の CalcTileCenter(初期値・フォールバック)。
+		Vector3 moveFromPos;           // 補間区間の始点(y=0)。
+		Vector3 moveToPos;             // 補間区間の終点(y=0)。
+		float moveStartClock = -1.0f;  // 補間開始時の m_clock。< 0 で「補間なし(静止)」。
+		float moveEndClock = -1.0f;    // 補間終了時の m_clock。
+
+		// --- 向き / アニメ状態ヒント(UnitModelDisplay が読む) ---
+		Vector3 facingDir;             // XZ 単位ベクトル。初期: 敵 = (0,0,-1)、味方 = (0,0,+1)。
+		bool isMoving = false;         // このフレーム補間中か。
+		int attackAnimSeq = 0;         // 攻撃(通常/必殺)を出すたび +1。表示側が前回値と比較して発火検出。
+		bool attackAnimIsSkill = false;// 直近 attackAnimSeq 更新が必殺技か。
+		bool deathAnimTriggered = false; // Death イベントで true(以後不変)。
 	};
 
 	/// <summary>
@@ -61,6 +79,15 @@ public:
 
 	const std::vector<UnitView>& GetUnitViews() const { return m_views; }
 
+	/// <summary>
+	/// m_views の先頭 [0, GetPlayerViewCount()) がプレイヤー board、以降が敵 board。
+	/// 戦闘再生中のモデル表示で、プレイヤー分 / 敵分を別々の UnitModelDisplay に渡すために使う。
+	/// </summary>
+	size_t GetPlayerViewCount() const { return m_playerCount; }
+
+	/// <summary>再生速度(Begin で決定、combat秒/実秒)。アニメ速度合わせに使う。</summary>
+	float GetPlaybackSpeed() const { return m_speed; }
+
 private:
 	void ApplyEvent(const CombatEvent& ev);
 	UnitView* ResolveActor(const CombatEvent& ev);
@@ -77,6 +104,9 @@ private:
 	std::string m_enemyOwner;
 
 	std::vector<CombatEvent> m_events;
+	// m_events と同添字。Move イベントの位置補間所要(combat秒)。Begin() で 1 パス前計算。
+	// Move 以外の添字の値は未使用。
+	std::vector<float> m_moveDur;
 	size_t m_nextIndex = 0;
 	float m_clock = 0.0f;
 	float m_speed = 1.0f;
