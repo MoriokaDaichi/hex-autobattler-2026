@@ -206,7 +206,20 @@ void UpdateFromPlayback(const CombatPlayback::UnitView* views, size_t count);
     (`m_displayEntries` に `Quaternion lastRot` を保持)。→ **まず Slerp あり(turnRate ≒ 12 rad/s)で実装**。
   - `modelScale = kUnitModelScale * starMul`(既存)。
   - `modelRender.SetTRS(worldPos, rot, modelScale); modelRender.Update();`
-  - **アニメ状態機**(`m_displayEntries[i]` に `int seenAttackSeq; bool seenDeath; int curClip;` を保持):
+  - **【必須】再生セッション跨ぎの状態リセット**(game-ae レビュー指摘):
+    `m_enemyModelDisplay` はラウンドを跨いで敵編成が同一だと `RebuildIfViewsChanged` が発火せず、
+    `DisplayEntry` の `seenDeath` / `seenAttackSeq` / `curClip` が**前ラウンドの値のまま残る**。
+    → 前ラウンドで撃破された敵が今ラウンド開始時 `seenDeath==true` のまま死亡ポーズで固まる、
+    攻撃 seq も `attackAnimSeq(新 Begin で 0) != seenAttackSeq(前ラウンドの高い値)` で初フレーム誤発火。
+    対処(ステートレス、状態機ステップの**前**に毎エントリで行う):
+    ```cpp
+    // ビューが生存を示すのに前回 death を見ていた → 新しい戦闘セッション。死亡状態を解除。
+    if (!views[i].deathAnimTriggered && e.seenDeath) { e.seenDeath = false; e.curClip = -1; }
+    // 攻撃 seq が巻き戻った(新 Begin で 0 起点) → 追随させて誤発火を防ぐ。
+    if (views[i].attackAnimSeq < e.seenAttackSeq) e.seenAttackSeq = views[i].attackAnimSeq;
+    ```
+    (`e` = `m_displayEntries[i]`。`curClip` 初期値は -1。)
+  - **アニメ状態機**(`m_displayEntries[i]` に `int seenAttackSeq = 0; bool seenDeath = false; int curClip = -1;` を保持):
     1. `views[i].deathAnimTriggered && !seenDeath` → `PlayAnimation(4, 0.15f)`、`seenDeath = true`、
        `curClip = 4`。
     2. else if `views[i].attackAnimSeq != seenAttackSeq` →
@@ -300,6 +313,17 @@ if (modelPhase == Phase::Combat && m_combatSimDone && m_combatPlayback.IsActive(
 ---
 
 ## 7. 既知の懸念・F5 で見る点(レビュー後の実装で確認)
+
+0. **再生終了フレームの 1 フレームちらつき**(game-ae 指摘): `IsActive()` が false 化した瞬間、
+   model ブロック(Update 冒頭)はまだ `ResetBoardPositions()`(L1117)前 → board 駆動で sim 最終位置
+   (密集)のモデルが 1 フレーム出うる。対処: model ブロックの再生駆動分岐条件に **`m_combatPlayback.IsFinished()` を否定として足す**
+   か(`Combat && simDone && (IsActive() || !IsFinished()相当)`)、または L1117 の `ResetBoardPositions()` を
+   model ブロックより前(Update 冒頭)へ移す。実装ではまず「再生駆動分岐を `IsActive()` でなく
+   `!m_combatPlayback.IsFinished()` で判定」= 終了フレームも playback の最終 worldPos を使う、にして
+   ちらつきを回避。F5 で確認。
+0b. **エンジンは触らない**: アニメ API(`AnimationClip::SetLoopFlag` / `ModelRender::PlayAnimation(int,float)` /
+   `IsPlayingAnimation()`)の実宣言が調査時と食い違ったら **Game/ スコープ内で吸収**する。
+   `k2Engine`/`k2EngineLow` に手を入れる必要が出たら**手を止めて game-ae に相談**(勝手に engine を触らない)。
 
 1. **モデルの前方軸**: `kModelYawOffsetDeg` が 0 か 180 か(あるいは ±90)は tkm 次第。F5 で即判明。
    実装では定数 1 個で切り替えられる形にしておく。
