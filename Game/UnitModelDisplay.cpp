@@ -58,7 +58,20 @@ void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
 	for (size_t i = 0; i < numDisplayed; ++i)
 	{
 		const UnitInstance& unit = board[i];
-		ModelRender& modelRender = *m_displayEntries[i].modelRender;
+		DisplayEntry& e = m_displayEntries[i];
+		ModelRender& modelRender = *e.modelRender;
+
+		// 再生駆動(UpdateFromPlayback)で死亡/攻撃クリップに入ったエントリが、board 駆動へ戻っても
+		// そのまま(死亡ポーズ最終フレームで静止)残る回帰を防ぐ。編成据え置きのリトライでは
+		// RebuildIfBoardChanged が不発なので、ここで idle へ戻す(idle はループ設定済み)。
+		if (e.seenDeath || e.curClip != kClipIdle)
+		{
+			modelRender.PlayAnimation(kClipIdle, 0.15f);
+			e.curClip = kClipIdle;
+			e.seenDeath = false;
+			e.seenAttackSeq = 0;
+			e.lastRot = Quaternion::Identity;
+		}
 
 		Vector3 worldPos = HexGridRenderer::CalcTileCenter(unit.position.q, unit.position.r);
 
