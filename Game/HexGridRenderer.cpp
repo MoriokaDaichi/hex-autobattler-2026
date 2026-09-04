@@ -8,10 +8,14 @@ namespace
 	const Vector4 kGridLineColor(0.35f, 0.6f, 0.7f, 1.0f);
 	const Vector4 kAllyZoneColor(0.2f, 0.5f, 0.35f, 1.0f);
 	const Vector4 kEnemyZoneColor(0.55f, 0.25f, 0.25f, 1.0f);
-	// r2(プレイヤー最前列)とr3(敵最前列)の境目に引く区切りライン色。座標ギャップは設けず
-	// (常に1つの6行×9列の戦場)、色分けとこの明るいラインだけで2陣営を視覚的に分ける
+	// r2(プレイヤー最前列)とr3(敵最前列)の境目を示す帯。座標ギャップは設けず
+	// (常に1つの6行×9列の戦場)、ゾーン色分けとこの帯で2陣営を視覚的に分ける
 	// (board-layout-rework、ユーザー確定「ギャップ無し」)。
-	const Vector4 kZoneBoundaryColor(0.9f, 0.85f, 0.55f, 1.0f);
+	// 当初は1px LINELIST で描いていたが実機でほぼ視認不可だったため、太い塗り帯(三角形)に変更
+	// (board-layout-tuning 作業1)。DirectX12 に線幅の概念が無く LINELIST は常に1px のため。
+	const Vector4 kZoneBoundaryColor(1.0f, 0.72f, 0.12f, 0.9f); // 明るい琥珀。グリッド線(水色)と明確に差をつける。
+	const float kZoneBoundaryHalfWidth = 9.0f; // 帯の半幅(ワールド単位。kHexSize=50 に対し全幅18)。
+	const float kZoneBoundaryLiftY = 0.6f;     // グリッド線・タイル塗りとの Z ファイト回避に僅かに浮かせる。
 	const float kEmptyTileAlpha = 0.35f;
 	const float kOccupiedTileAlpha = 0.55f;
 
@@ -218,20 +222,8 @@ void HexGridRenderer::BuildGridLines()
 		}
 	}
 
-	// r2/r3 の境界(プレイヤー陣地と敵陣地の境目)を明るいラインで強調する。
-	// 敵最前列 (q, kAllyZoneMaxR+1) の"プレイヤー側を向いた2辺"(pointy-topの下端: corner4-5, 5-0)を
-	// なぞると、ちょうど2陣営の継ぎ目になる。
-	const int boundaryR = kAllyZoneMaxR + 1;
-	for (int q = kMinQ; q <= kMaxQ; ++q) {
-		Vector3 center = CalcTileCenter(q, boundaryR);
-		Vector3 c4 = center + HexCornerOffset(kHexSize, 4);
-		Vector3 c5 = center + HexCornerOffset(kHexSize, 5);
-		Vector3 c0 = center + HexCornerOffset(kHexSize, 0);
-		m_lineVertices.push_back({ c4, kZoneBoundaryColor });
-		m_lineVertices.push_back({ c5, kZoneBoundaryColor });
-		m_lineVertices.push_back({ c5, kZoneBoundaryColor });
-		m_lineVertices.push_back({ c0, kZoneBoundaryColor });
-	}
+	// r2/r3 境界の帯(太い塗り)は BuildTileFills() 側で m_fillVertices に積む
+	// (LINELIST は 1px で実機視認不可のため。board-layout-tuning 作業1)。
 }
 
 void HexGridRenderer::BuildTileFills(const GameState& gameState)
@@ -269,6 +261,40 @@ void HexGridRenderer::BuildTileFills(const GameState& gameState)
 				m_fillVertices.push_back({ corners[i], fillColor });
 				m_fillVertices.push_back({ corners[(i + 1) % 6], fillColor });
 			}
+		}
+	}
+
+	// --- r2/r3 境界の帯 ---
+	// 敵最前列 r=(kAllyZoneMaxR+1) の"プレイヤー側を向いた2辺"(pointy-top下端: corner 4-5, 5-0)を
+	// XZ平面内で法線方向へ ±kZoneBoundaryHalfWidth 押し出し、太い矩形帯(2三角形/辺)にする。
+	// タイル塗りの後に積むことで最前面に重なる(translucentパスは深度書込み無し=描画順が奥→手前)。
+	{
+		const int boundaryR = kAllyZoneMaxR + 1;
+		auto pushEdgeBand = [&](const Vector3& a, const Vector3& b)
+		{
+			Vector3 dir = b - a;
+			float len = sqrtf(dir.x * dir.x + dir.z * dir.z);
+			if (len < 0.0001f) return;
+			Vector3 n(-dir.z / len, 0.0f, dir.x / len); // XZ平面での法線。
+			Vector3 off(n.x * kZoneBoundaryHalfWidth, 0.0f, n.z * kZoneBoundaryHalfWidth);
+			Vector3 lift(0.0f, kZoneBoundaryLiftY, 0.0f);
+			Vector3 a0 = a + off + lift, a1 = a - off + lift;
+			Vector3 b0 = b + off + lift, b1 = b - off + lift;
+			m_fillVertices.push_back({ a0, kZoneBoundaryColor });
+			m_fillVertices.push_back({ a1, kZoneBoundaryColor });
+			m_fillVertices.push_back({ b0, kZoneBoundaryColor });
+			m_fillVertices.push_back({ a1, kZoneBoundaryColor });
+			m_fillVertices.push_back({ b1, kZoneBoundaryColor });
+			m_fillVertices.push_back({ b0, kZoneBoundaryColor });
+		};
+
+		for (int q = kMinQ; q <= kMaxQ; ++q) {
+			Vector3 center = CalcTileCenter(q, boundaryR);
+			Vector3 c4 = center + HexCornerOffset(kHexSize, 4);
+			Vector3 c5 = center + HexCornerOffset(kHexSize, 5);
+			Vector3 c0 = center + HexCornerOffset(kHexSize, 0);
+			pushEdgeBand(c4, c5);
+			pushEdgeBand(c5, c0);
 		}
 	}
 }

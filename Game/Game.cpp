@@ -56,6 +56,21 @@ bool Game::Start()
 	Vector3 mainLightDir(0.35f, -0.75f, 0.55f);
 	mainLightDir.Normalize();
 	g_renderingEngine->SetDirectionLight(0, mainLightDir, Vector3(1.05f, 1.0f, 0.92f));
+
+	// enemy-model-look 案A: メインライト1本+平坦なアンビエントだけだと、なめらかで一様色の
+	// モデル(Slimeなど)に陰影の勾配が乏しくフラットなベタ塗りに見える。未使用のライトスロット
+	// (MAX_DIRECTIONAL_LIGHT=4、これまで0番のみ使用)に弱いフィルとリムを足して、面情報の少ない
+	// モデルにも立体感を出す。SetDirectionLightはcastShadowを触らず既定(=影を落とさない)のままなので、
+	// フィル/リム用途に適する。向き・強度・色はF5反復で微調整する出発値。
+	// フィル: カメラ寄りの反対側から弱く回り込ませ、影側の潰れを緩和する。
+	Vector3 fillLightDir(-0.2f, -0.35f, -0.9f);
+	fillLightDir.Normalize();
+	g_renderingEngine->SetDirectionLight(1, fillLightDir, Vector3(0.32f, 0.34f, 0.42f));
+	// リム: 横〜やや後方から当てて輪郭を起こし、背景の黒に溶けないようにする。
+	Vector3 rimLightDir(-0.5f, -0.2f, 0.7f);
+	rimLightDir.Normalize();
+	g_renderingEngine->SetDirectionLight(2, rimLightDir, Vector3(0.45f, 0.42f, 0.38f));
+
 	g_renderingEngine->SetAmbient(Vector3(0.35f, 0.35f, 0.4f));
 
 	// 盤面以外に何も無い(背景が真っ黒に近い)シーンだと、自動露出(ミドルグレー基準)が
