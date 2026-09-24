@@ -239,6 +239,8 @@ private:
 		const std::vector<UnitInstance>& allyBoard, const std::vector<UnitInstance>& enemyBoard,
 		std::vector<CombatEvent>& outEvents)
 	{
+		const HexCoord moveFrom = attacker.position; // このアクションターンの移動元(イベントに記録する)。
+
 		int maxSteps = GetEffectiveMoveSteps(attacker);
 		for (int step = 0; step < maxSteps; ++step)
 		{
@@ -303,6 +305,11 @@ private:
 		e.targetIndex = targetIndex;
 		e.beforeValue = startDistance;
 		e.afterValue = attacker.position.Distance(target.position);
+		// 再生用: 移動元・移動先マス(解決ロジックには一切影響しない表示用メタ情報)。
+		e.moveFromQ = moveFrom.q;
+		e.moveFromR = moveFrom.r;
+		e.moveToQ = attacker.position.q;
+		e.moveToR = attacker.position.r;
 		outEvents.push_back(e);
 	}
 

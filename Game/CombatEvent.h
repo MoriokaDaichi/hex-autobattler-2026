@@ -50,5 +50,11 @@ struct CombatEvent
 	int beforeValue = 0; // 変化前の値(HP/シールド/距離)。
 	int afterValue = 0;  // 変化後の値。
 
+	// Move イベント専用: 移動元・移動先の axial 座標(それ以外のイベントでは未使用、既定 0)。
+	// 再生側(CombatPlayback)がユニットをどこへ動かすか決めるために使う。距離だけの
+	// beforeValue/afterValue とは別。HexCoord.h への依存を増やさないため int 4 個で持つ。
+	int moveFromQ = 0, moveFromR = 0;
+	int moveToQ = 0, moveToR = 0;
+
 	std::string message; // Warning用の自由記述。
 };
