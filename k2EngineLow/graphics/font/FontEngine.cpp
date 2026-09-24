@@ -33,7 +33,22 @@ namespace nsK2EngineLow {
 		renderTargetState.sampleMask = UINT_MAX;
 		renderTargetState.sampleDesc.Count = 1;
 
-		SpriteBatchPipelineStateDescription sprBatchDesc(renderTargetState);
+		// SpriteBatchのデフォルトブレンド設定(s_DefaultBlendDesc)はプリマルチプライドアルファ
+		// (SrcBlend=ONE)前提だが、本エンジンのFont::Draw()呼び出し元はストレートアルファ
+		// (RGBはフル値、colorのwだけを透明度として使う)で色を渡している。SrcBlend=ONEのままだと
+		// アルファを下げてもソースRGBが常にフル強度で加算され、フェード演出が効かない
+		// (font-rendering-bugfixesタスクで判明)。ストレートアルファ用のブレンド記述に差し替える。
+		D3D12_BLEND_DESC straightAlphaBlendDesc = {};
+		straightAlphaBlendDesc.RenderTarget[0].BlendEnable = TRUE;
+		straightAlphaBlendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+		straightAlphaBlendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+		straightAlphaBlendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+		straightAlphaBlendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
+		straightAlphaBlendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+		straightAlphaBlendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+		straightAlphaBlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+		SpriteBatchPipelineStateDescription sprBatchDesc(renderTargetState, &straightAlphaBlendDesc);
 
 		D3D12_VIEWPORT viewport;
 		viewport.TopLeftX = 0.0f;
@@ -55,6 +70,10 @@ namespace nsK2EngineLow {
 			L"Assets/font/myfile.spritefont",
 			cpuHandle,
 			gpuHandle);
+		// 未収録文字(全角記号等)を描画しようとするとSpriteFont::Impl::FindGlyph()が例外を送出して
+		// クラッシュする(font-rendering-bugfixesタスクで判明)。ASCIIの'?'はmyfile.spritefontに
+		// 確実に収録されている基本文字のため、代替グリフとして設定しクラッシュを防ぐ。
+		m_spriteFont->SetDefaultCharacter(L'?');
 
 		re.End(g_graphicsEngine->GetCommandQueue());
 	}
