@@ -2,8 +2,6 @@
 #include "CombatPlayback.h"
 #include "UnitInstance.h"
 #include "HexGridRenderer.h"
-#include <map>
-#include <utility>
 
 const float CombatPlayback::kTargetPlaybackSeconds = 6.0f;
 const float CombatPlayback::kMinSpeed = 1.0f;
@@ -80,29 +78,6 @@ void CombatPlayback::Begin(
 	m_nextIndex = 0;
 	m_clock = 0.0f;
 	m_tailTimer = kTailSeconds;
-
-	// Move イベントごとの位置補間所要を 1 パスで前計算する(combat内時刻・秒)。
-	// 「同じ (actorOwner, actorIndex) を持つ次のイベントまでの間隔」の 0.8 倍を clamp する。
-	// 後ろから走査し、同一 actor で直近に見たイベント時刻を控える。
-	m_moveDur.assign(m_events.size(), kMoveDurFallback);
-	{
-		std::map<std::pair<std::string, int>, float> nextTimeByActor;
-		for (size_t k = m_events.size(); k-- > 0; )
-		{
-			const CombatEvent& ev = m_events[k];
-			if (ev.actorIndex < 0) continue;
-			std::pair<std::string, int> key(ev.actorOwner, ev.actorIndex);
-
-			if (ev.type == CombatEventType::Move)
-			{
-				auto it = nextTimeByActor.find(key);
-				float gap = (it != nextTimeByActor.end()) ? (it->second - ev.time) : -1.0f;
-				m_moveDur[k] = (gap > 0.0f) ? Clampf(gap * 0.8f, kMoveDurMin, kMoveDurMax)
-					: kMoveDurFallback;
-			}
-			nextTimeByActor[key] = ev.time; // このイベントを、より前の同 actor イベントの「次」にする。
-		}
-	}
 
 	// 総尺が kTargetPlaybackSeconds に収まるよう再生速度を決める(下限1.0倍=スローにはしない)。
 	float total = m_events.empty() ? 0.0f : m_events.back().time;
@@ -260,6 +235,14 @@ void CombatPlayback::ApplyEvent(const CombatEvent& ev)
 			v->displayHP = 0;
 			v->displayShield = 0;
 			v->deathAnimTriggered = true;
+			// 同一フレーム内でMove直後にDeathが来た場合(moveStartClock==m_clockでまだ補間ループを
+			// 1回も通っていない)、worldPosが移動元のまま取り残されてしまう。シミュレーション上は
+			// MoveTowardsの時点で既にattacker.positionが移動先へ更新済みなので、moveToPosへ
+			// スナップしてground truthに合わせる。
+			if (v->moveStartClock >= 0.0f && v->moveStartClock == m_clock)
+			{
+				v->worldPos = v->moveToPos;
+			}
 			v->moveStartClock = -1.0f; // 補間中でも撃破されたらその場で崩れる。
 		}
 		break;
@@ -274,7 +257,10 @@ void CombatPlayback::ApplyEvent(const CombatEvent& ev)
 				v->moveFromPos = v->worldPos; // 現在の表示位置から繋ぐ(補間の連続性)。
 				v->moveToPos = to;
 				v->moveStartClock = m_clock;
-				float dur = (m_nextIndex < m_moveDur.size()) ? m_moveDur[m_nextIndex] : kMoveDurFallback;
+				// 次アクションまでの実効間隔(CombatEngineが生成時点で計算済み)の0.8倍を clamp する。
+				float dur = (ev.moveDurationHint > 0.0f)
+					? Clampf(ev.moveDurationHint * 0.8f, kMoveDurMin, kMoveDurMax)
+					: kMoveDurFallback;
 				v->moveEndClock = m_clock + dur;
 			}
 		}

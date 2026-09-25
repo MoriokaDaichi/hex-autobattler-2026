@@ -64,14 +64,15 @@ void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
 		// 再生駆動(UpdateFromPlayback)で死亡/攻撃クリップに入ったエントリが、board 駆動へ戻っても
 		// そのまま(死亡ポーズ最終フレームで静止)残る回帰を防ぐ。編成据え置きのリトライでは
 		// RebuildIfBoardChanged が不発なので、ここで idle へ戻す(idle はループ設定済み)。
-		if (e.seenDeath || e.curClip != kClipIdle)
+		if (e.curClip != kClipIdle)
 		{
 			modelRender.PlayAnimation(kClipIdle, 0.15f);
 			e.curClip = kClipIdle;
-			e.seenDeath = false;
 			e.seenAttackSeq = 0;
-			e.lastRot = Quaternion::Identity;
 		}
+		// 再生駆動用の向き補間状態(lastRot)は board 駆動では使わない。次回の再生開始時に古い値を
+		// 持ち越さないよう、待機のみで再生を終えたエントリも含めて毎フレームここでリセットしておく。
+		e.lastRot = Quaternion::Identity;
 
 		Vector3 worldPos = HexGridRenderer::CalcTileCenter(unit.position.q, unit.position.r);
 
@@ -84,6 +85,7 @@ void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
 		worldPos.y += kUnitModelHalfHeightAtScale1 * kUnitModelScale.x * starScale;
 
 		modelRender.SetTRS(worldPos, Quaternion::Identity, modelScale);
+		modelRender.SetAnimationSpeed(1.0f); // 再生駆動時に変更された速度が残らないよう、board駆動では常に等倍に戻す。
 		modelRender.Update();
 	}
 }
@@ -129,7 +131,7 @@ void UnitModelDisplay::RebuildIfViewsChanged(const CombatPlayback::UnitView* vie
 	}
 }
 
-void UnitModelDisplay::UpdateFromPlayback(const CombatPlayback::UnitView* views, size_t count)
+void UnitModelDisplay::UpdateFromPlayback(const CombatPlayback::UnitView* views, size_t count, float playbackSpeed)
 {
 	RebuildIfViewsChanged(views, count);
 
@@ -147,7 +149,7 @@ void UnitModelDisplay::UpdateFromPlayback(const CombatPlayback::UnitView* views,
 		ModelRender& modelRender = *e.modelRender;
 
 		// --- 再生セッション跨ぎの状態リセット(RebuildIfViewsChanged が発火しない敗北リトライ等) ---
-		if (!view.deathAnimTriggered && e.seenDeath) { e.seenDeath = false; e.curClip = -1; }
+		if (!view.deathAnimTriggered && e.curClip == kClipDeath) { e.curClip = -1; }
 		if (view.attackAnimSeq < e.seenAttackSeq) e.seenAttackSeq = view.attackAnimSeq;
 
 		// --- TRS ---
@@ -167,10 +169,9 @@ void UnitModelDisplay::UpdateFromPlayback(const CombatPlayback::UnitView* views,
 		modelRender.SetTRS(worldPos, rot, modelScale);
 
 		// --- アニメ状態機(死亡 > 攻撃再生中 > 攻撃トリガ > 移動 > idle) ---
-		if (view.deathAnimTriggered && !e.seenDeath)
+		if (view.deathAnimTriggered && e.curClip != kClipDeath)
 		{
 			modelRender.PlayAnimation(kClipDeath, 0.15f);
-			e.seenDeath = true;
 			e.curClip = kClipDeath;
 		}
 		else if (view.attackAnimSeq != e.seenAttackSeq)
@@ -184,7 +185,7 @@ void UnitModelDisplay::UpdateFromPlayback(const CombatPlayback::UnitView* views,
 		{
 			// 攻撃モーション再生中は割り込まない。
 		}
-		else if (e.seenDeath)
+		else if (e.curClip == kClipDeath)
 		{
 			// death クリップの最終フレームで静止。
 		}
@@ -198,6 +199,7 @@ void UnitModelDisplay::UpdateFromPlayback(const CombatPlayback::UnitView* views,
 			}
 		}
 
+		modelRender.SetAnimationSpeed(playbackSpeed); // 位置補間の速さ(m_speed)にアニメ再生速度を揃える。
 		modelRender.Update();
 	}
 }

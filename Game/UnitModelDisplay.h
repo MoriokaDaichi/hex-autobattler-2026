@@ -32,9 +32,10 @@ public:
 	/// 敵 slice のいずれか)から、モデルの TRS(補間後ワールド座標 + Yリフト / 進行方向 or 対象方向の
 	/// yaw / スケール)と再生アニメ(idle/move/attack/skill/death)を更新する。
 	/// ビュー構成((UnitDef*,star) の並び)が変わったらモデルを再構築する。
+	/// playbackSpeedはCombatPlayback::GetPlaybackSpeed()の値で、アニメ再生速度を位置補間の速さに揃える。
 	/// (combat-movement-playback)
 	/// </summary>
-	void UpdateFromPlayback(const CombatPlayback::UnitView* views, size_t count);
+	void UpdateFromPlayback(const CombatPlayback::UnitView* views, size_t count, float playbackSpeed);
 
 	/// <summary>
 	/// 毎フレーム呼ぶ。現在保持している全モデルを描画キューに登録する。
@@ -59,7 +60,6 @@ private:
 		// combat-movement-playback: 再生駆動(UpdateFromPlayback)用の状態。board 駆動では未使用。
 		Quaternion lastRot = Quaternion::Identity; // 向きの Slerp 用。
 		int seenAttackSeq = 0;   // 直近で反映した UnitView::attackAnimSeq。
-		bool seenDeath = false;  // death クリップを再生済みか。
 		int curClip = -1;        // 現在再生中(または最後に指示した)クリップ index。-1 = 未指定。
 	};
 

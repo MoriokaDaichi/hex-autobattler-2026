@@ -310,6 +310,8 @@ private:
 		e.moveFromR = moveFrom.r;
 		e.moveToQ = attacker.position.q;
 		e.moveToR = attacker.position.r;
+		// 再生用: 次アクションまでの実効間隔(このユニットの攻撃速度から決まる、既に計算済みの値)。
+		e.moveDurationHint = GetEffectiveAttackInterval(attacker);
 		outEvents.push_back(e);
 	}
 

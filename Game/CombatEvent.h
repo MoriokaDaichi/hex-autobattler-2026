@@ -56,5 +56,10 @@ struct CombatEvent
 	int moveFromQ = 0, moveFromR = 0;
 	int moveToQ = 0, moveToR = 0;
 
+	// Move イベント専用: このアクションで次に行動するまでの実効間隔(秒)。CombatEngine::MoveTowardsが
+	// GetEffectiveAttackIntervalの値をそのまま記録する。再生側(CombatPlayback)が位置補間の所要時間を
+	// 決めるのに使う(それ以外のイベントでは未使用、既定0)。
+	float moveDurationHint = 0.0f;
+
 	std::string message; // Warning用の自由記述。
 };

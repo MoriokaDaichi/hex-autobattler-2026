@@ -142,8 +142,9 @@ void Game::Update()
 		{
 			const auto& views = m_combatPlayback.GetUnitViews();
 			size_t pc = m_combatPlayback.GetPlayerViewCount();
-			m_unitModelDisplay.UpdateFromPlayback(views.data(), pc);
-			m_enemyModelDisplay.UpdateFromPlayback(views.data() + pc, views.size() - pc);
+			float playbackSpeed = m_combatPlayback.GetPlaybackSpeed();
+			m_unitModelDisplay.UpdateFromPlayback(views.data(), pc, playbackSpeed);
+			m_enemyModelDisplay.UpdateFromPlayback(views.data() + pc, views.size() - pc, playbackSpeed);
 		}
 		else if (showBattlefieldModels)
 		{

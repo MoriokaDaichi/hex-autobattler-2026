@@ -104,9 +104,6 @@ private:
 	std::string m_enemyOwner;
 
 	std::vector<CombatEvent> m_events;
-	// m_events と同添字。Move イベントの位置補間所要(combat秒)。Begin() で 1 パス前計算。
-	// Move 以外の添字の値は未使用。
-	std::vector<float> m_moveDur;
 	size_t m_nextIndex = 0;
 	float m_clock = 0.0f;
 	float m_speed = 1.0f;
