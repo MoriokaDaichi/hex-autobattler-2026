@@ -48,8 +48,14 @@ bool Game::Start()
 	// カメラを上げて引いた。ターゲットを +Z することで、手前のプレイヤー盤面へ画面配分を寄せつつ
 	// 盤面を画面中央〜やや上へ持ち上げる(F5是正: 以前は盤面がやや下・上下余白が大きかった)。
 	// カメラをやや前(+Z方向)へ寄せ、少し上げて俯角を強めている。(数値は F5 反復で微調整する出発値)
-	g_camera3D->SetPosition({ 0.0f, 1230.0f, -975.0f });
-	g_camera3D->SetTarget({ 0.0f, 0.0f, 75.0f });
+	// readability-board-economy F: 盤面が小さいという指摘を受け、左のベンチ列(x≤-642)と右のHUD列(x≥506)、
+	// 下のショップ(y≤-310)の間の空き領域いっぱいまで寄せた(俯角55°・距離990、旧: 約49.5°・1617)。
+	// 1マスの画面上の横ピッチは手前行 56→95px / 奥行 48→76px(約1.7倍)。
+	// x を +10 ずらしているのは(カメラとターゲットを同じだけ動かしヨーは付けない)、平行四辺形の盤面の
+	// 外接矩形の中心を左右UIの間の空き領域の中心(UI x≈-68)に合わせるため。
+	// 投影計算の根拠: docs/tasks/readability-board-economy/plan.md §F。
+	g_camera3D->SetPosition({ 10.0f, 811.0f, -518.0f });
+	g_camera3D->SetTarget({ 10.0f, 0.0f, 50.0f });
 
 	// カメラとほぼ同じ側(斜め上・やや背後)からユニット正面に光が回り込む方向に
 	// ディレクションライトを設定し、シルエット化を避けつつ陰影で立体感を出す。
@@ -210,11 +216,13 @@ void Game::Update()
 		// 盤面(プレイヤー陣地 = r0-2 の全9列、計27マス)のヒット領域。
 		// ユニットが居るマスはBoardUnit、空きマスはBoardEmptyHex。
 		// 透視射影のため、等方形(正方形)の固定半径だとr(奥行き)方向にヒット矩形が大きく重なることが
-		// 実機検証で判明した(ui-mouse-cards plan.md §6-1)。異方性の固定ボックスにしている
-		// (X方向はマス間の間隔が比較的一定、Y方向は奥行きで詰まって見えるぶん小さめにする)。
-		// board-layout-rework: カメラを引き・モデルを縮小したので、値は F5 で再調整する出発値。
-		const float kHexHitHalfWidth = 35.0f;
-		const float kHexHitHalfHeight = 16.0f;
+		// 実機検証で判明した(ui-mouse-cards plan.md §6-1)。X/Yで別々の大きさを持つボックスにしている。
+		// readability-board-economy F: 固定の画面サイズ(旧: 半幅35×半高16px)だとカメラを寄せた際に
+		// マスの中心付近しか反応しなくなるため、マス中心からワールド空間で±X/±Zの点を射影して矩形を決める
+		// (カメラ・透視による手前/奥の大きさの差に自動追従)。マス間ピッチは x 86.6 / z 75 なので、
+		// この半サイズなら隣接マスの矩形同士は重ならない。
+		const float kHexHitWorldHalfX = 39.0f;
+		const float kHexHitWorldHalfZ = 34.0f;
 		for (int q = 0; q <= 8; ++q)
 		{
 			for (int r = HexGridRenderer::kAllyZoneMinR; r <= HexGridRenderer::kAllyZoneMaxR; ++r)
@@ -223,15 +231,21 @@ void Game::Update()
 				if (!HexGridRenderer::IsValidHex(hex)) continue;
 
 				Vector3 world = HexGridRenderer::CalcTileCenter(q, r);
-				Vector2 uiPos;
-				if (!BoardUIRenderer::WorldToUI(world, uiPos)) continue; // カメラ視錐台外。
+				Vector2 uiLeft, uiRight, uiNear, uiFar;
+				if (!BoardUIRenderer::WorldToUI(world + Vector3(-kHexHitWorldHalfX, 0.0f, 0.0f), uiLeft)
+					|| !BoardUIRenderer::WorldToUI(world + Vector3(kHexHitWorldHalfX, 0.0f, 0.0f), uiRight)
+					|| !BoardUIRenderer::WorldToUI(world + Vector3(0.0f, 0.0f, -kHexHitWorldHalfZ), uiNear)
+					|| !BoardUIRenderer::WorldToUI(world + Vector3(0.0f, 0.0f, kHexHitWorldHalfZ), uiFar))
+				{
+					continue; // カメラ視錐台外。
+				}
 
 				UIHotRegion region;
 				region.hex = hex;
-				region.minX = uiPos.x - kHexHitHalfWidth;
-				region.maxX = uiPos.x + kHexHitHalfWidth;
-				region.minY = uiPos.y - kHexHitHalfHeight;
-				region.maxY = uiPos.y + kHexHitHalfHeight;
+				region.minX = uiLeft.x;
+				region.maxX = uiRight.x;
+				region.minY = uiNear.y; // 手前(-Z)ほど画面の下に映る。
+				region.maxY = uiFar.y;
 				region.kind = (hotRegionPlayer.FindBoardUnitAt(hex) != nullptr)
 					? UIRegionKind::BoardUnit : UIRegionKind::BoardEmptyHex;
 				m_hotRegions.push_back(region);

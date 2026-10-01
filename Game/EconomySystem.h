@@ -32,15 +32,15 @@ public:
 	/// </summary>
 	void GrantRoundIncome(Player& player, CombatResult result, const std::string& ownerName)
 	{
-		UpdateStreak(player, result);
-
-		int interest = player.gold / kGoldPerInterest;
-		if (interest > kMaxInterest) interest = kMaxInterest;
+		// readability-board-economy H: 利子・連勝/連敗ボーナスは、ゴールドHUDの収入内訳ツールチップと
+		// 同じ関数(CalcInterest / CalcStreakBonusFor)で計算し、見込み表示と実収入がずれないようにする。
+		// CalcStreakBonusForは「更新前の連数+今回の結果」から次の連数を求める関数なので、UpdateStreakより前に呼ぶ。
+		int interest = CalcInterest(player.gold);
 
 		// 連勝と連敗は別の表(連勝は2ずつ伸び続け、連敗は+3で頭打ち)。引き分けはボーナス無し。
-		int streakBonus = 0;
-		if (result == CombatResult::Win) streakBonus = GetWinStreakBonus(player.winStreak);
-		else if (result == CombatResult::Loss) streakBonus = GetLossStreakBonus(player.lossStreak);
+		int streakBonus = CalcStreakBonusFor(player, result);
+
+		UpdateStreak(player, result);
 
 		int totalIncome = kBaseIncome + interest + streakBonus;
 		player.gold += totalIncome;
@@ -49,6 +49,40 @@ public:
 		swprintf_s(buf, L"[%hs] Income: +%d (base %d, interest %d, streak bonus %d) -> Gold: %d\n",
 			ownerName.c_str(), totalIncome, kBaseIncome, interest, streakBonus, player.gold);
 		OutputDebugString(buf);
+	}
+
+	/// <summary>
+	/// 所持金goldに対する利子(kGoldPerInterestごとに+1、kMaxInterestで頭打ち)を返す。
+	/// GrantRoundIncomeと、ゴールドHUDの収入内訳ツールチップの両方から使う(表示と実収入をずらさないため)。
+	/// </summary>
+	static int CalcInterest(int gold)
+	{
+		if (gold <= 0) return 0;
+		int interest = gold / kGoldPerInterest;
+		if (interest > kMaxInterest) interest = kMaxInterest;
+		return interest;
+	}
+
+	/// <summary>
+	/// 次の利子段階(+1)に届くまでに必要なゴールドを返す。既に上限(kMaxInterest)に達していれば0。
+	/// </summary>
+	static int GoldToNextInterest(int gold)
+	{
+		int interest = CalcInterest(gold);
+		if (interest >= kMaxInterest) return 0;
+		return (interest + 1) * kGoldPerInterest - gold;
+	}
+
+	/// <summary>
+	/// 現在の連勝/連敗数のプレイヤーが、次の戦闘をresultで終えた場合に付く連勝/連敗ボーナスを返す
+	/// (playerは変更しない)。UpdateStreakと同じ規則で次の連数(勝ち→winStreak+1、負け→lossStreak+1)を
+	/// 求めてから計算する。GrantRoundIncome(UpdateStreak前に呼ぶ)と収入内訳ツールチップの両方から使う。
+	/// </summary>
+	static int CalcStreakBonusFor(const Player& player, CombatResult result)
+	{
+		if (result == CombatResult::Win) return GetWinStreakBonus(player.winStreak + 1);
+		if (result == CombatResult::Loss) return GetLossStreakBonus(player.lossStreak + 1);
+		return 0;
 	}
 
 	/// <summary>

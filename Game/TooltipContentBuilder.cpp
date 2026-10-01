@@ -453,9 +453,45 @@ namespace TooltipContentBuilder
 
 		case UIRegionKind::GoldDisplay:
 		{
-			wchar_t buf[64];
+			// readability-board-economy H: 次ラウンドの収入見込みを項目ごとに表示する。
+			// 全てEconomySystemの定数・関数で計算し、GrantRoundIncomeの実収入(ログ"Income:")と一致させる。
+			// 利子は戦闘終了時の所持金で決まるが、戦闘中にゴールドが変わる操作は無いため現在の所持金で計算してよい。
+			std::vector<std::wstring> lines;
+			wchar_t buf[128];
 			swprintf_s(buf, L"所持ゴールド: %dG", player.gold);
-			return { buf };
+			lines.push_back(buf);
+
+			lines.push_back(L"次ラウンドの収入(戦闘終了時の所持金で計算)");
+
+			swprintf_s(buf, L"基本収入 +%dG", EconomySystem::kBaseIncome);
+			lines.push_back(buf);
+
+			const int interest = EconomySystem::CalcInterest(player.gold);
+			swprintf_s(buf, L"利子 +%dG (%dGごとに+1、上限+%d)",
+				interest, EconomySystem::kGoldPerInterest, EconomySystem::kMaxInterest);
+			lines.push_back(buf);
+
+			const int toNextInterest = EconomySystem::GoldToNextInterest(player.gold);
+			if (toNextInterest > 0)
+			{
+				swprintf_s(buf, L"  あと%dGで利子+%dG", toNextInterest, interest + 1);
+			}
+			else
+			{
+				swprintf_s(buf, L"  利子は上限(+%dG)に到達", EconomySystem::kMaxInterest);
+			}
+			lines.push_back(buf);
+
+			const int baseAndInterest = EconomySystem::kBaseIncome + interest;
+			const int winBonus = EconomySystem::CalcStreakBonusFor(player, CombatResult::Win);
+			const int lossBonus = EconomySystem::CalcStreakBonusFor(player, CombatResult::Loss);
+			swprintf_s(buf, L"勝った場合: 連勝ボーナス +%dG (%d連勝) -> 合計 +%dG",
+				winBonus, player.winStreak + 1, baseAndInterest + winBonus);
+			lines.push_back(buf);
+			swprintf_s(buf, L"負けた場合: 連敗ボーナス +%dG (%d連敗) -> 合計 +%dG",
+				lossBonus, player.lossStreak + 1, baseAndInterest + lossBonus);
+			lines.push_back(buf);
+			return lines;
 		}
 
 		case UIRegionKind::HudLevelDisplay:
