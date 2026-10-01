@@ -197,6 +197,19 @@ void Game::Update()
 	// ショップUIの操作フィードバック(数秒で自動的に消える)の残り時間を進める。
 	m_shopUI.UpdateFeedbackTimer(g_gameTime->GetFrameDeltaTime());
 
+	// 売却・合成で装備がアイテム欄へ戻った/引き継がれた通知(前フレームの操作でPlayerが積んだもの)を表示する(item-carryover)。
+	if (!m_gameState.players.empty() && !m_gameState.players[0].itemNotices.empty())
+	{
+		std::wstring notice;
+		for (const auto& text : m_gameState.players[0].itemNotices)
+		{
+			if (!notice.empty()) notice += L" / ";
+			notice += text;
+		}
+		m_gameState.players[0].itemNotices.clear();
+		m_shopUI.PushFeedback(notice.c_str(), ShopUIRenderer::FeedbackLevel::Info);
+	}
+
 	// マウス操作基盤: 今フレームのクリック可能矩形一覧を、フェーズごとに毎回作り直す
 	// (Render()側のDraw()呼び出しを流用すると1フレーム遅延するため。plan.md §0-4/§1-3)。
 	m_hotRegions.clear();

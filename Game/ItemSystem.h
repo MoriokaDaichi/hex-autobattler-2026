@@ -54,6 +54,38 @@ public:
 	}
 
 	/// <summary>
+	/// itemsを先頭から順にunitへ装備させる(合成・売却時の装備引き継ぎ用。item-carryover)。
+	/// ItemDatabase::GetActive()があればGiveItemの規則(素材の自動合成・上限kMaxItemSlots)に従い、
+	/// 無ければ空き枠への単純追加のみ行う。装備できなかったアイテムはoverflowの末尾へ積む。
+	/// </summary>
+	static void CarryOverItems(UnitInstance& unit, const std::vector<const ItemDef*>& items,
+		std::vector<const ItemDef*>& overflow, const std::string& ownerName)
+	{
+		const ItemDatabase* itemDatabase = ItemDatabase::GetActive();
+		ItemSystem itemSystem;
+		for (const ItemDef* item : items)
+		{
+			if (item == nullptr) continue;
+
+			bool equipped = false;
+			if (itemDatabase != nullptr)
+			{
+				equipped = itemSystem.GiveItem(unit, item, *itemDatabase, ownerName);
+			}
+			else if ((int)unit.items.size() < kMaxItemSlots)
+			{
+				unit.items.push_back(item);
+				equipped = true;
+			}
+
+			if (!equipped)
+			{
+				overflow.push_back(item);
+			}
+		}
+	}
+
+	/// <summary>
 	/// boardの各ユニットが持つアイテムの効果を集計し、bonusAttack/bonusMaxHPに加算する。
 	/// TraitSystem::ApplyTraitBonusesの後に呼ぶことを想定している(トレイト分に上乗せする)。
 	/// 併せてcurrentHPを(baseHP + bonusMaxHP)まで全回復させる。

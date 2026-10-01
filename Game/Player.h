@@ -4,6 +4,7 @@
 #include <map>
 #include <algorithm>
 #include "UnitInstance.h"
+#include "ItemSystem.h"
 
 /// <summary>
 /// 1人のプレイヤーの状態。
@@ -31,6 +32,10 @@ struct Player
 	// まだどのユニットにも装備していない、入手済みアイテム(ラウンド勝利報酬で増える)。
 	// 準備フェーズでプレイヤーが選び、ItemSystem::GiveItemでbench/boardのユニットへ移す。
 	std::vector<const ItemDef*> unclaimedItems;
+
+	// 売却・合成で装備がアイテム欄へ戻った/引き継がれた時の通知文(item-carryover)。
+	// Player側は積むだけで、Game::Update()が次フレーム頭でShopUIRendererのフィードバックへ流してclearする。
+	std::vector<std::wstring> itemNotices;
 
 	Player() = default;
 	Player(const std::string& playerName) : name(playerName) {}
@@ -272,6 +277,7 @@ struct Player
 	{
 		if (index >= bench.size()) return false;
 
+		ReturnItemsToUnclaimed(bench[index]); // 装備はアイテム欄へ戻す(item-carryover)。
 		gold += CalculateSellValue(bench[index]);
 		bench.erase(bench.begin() + index);
 		return true;
@@ -284,6 +290,7 @@ struct Player
 	{
 		if (index >= board.size()) return false;
 
+		ReturnItemsToUnclaimed(board[index]); // 装備はアイテム欄へ戻す(item-carryover)。
 		gold += CalculateSellValue(board[index]);
 		board.erase(board.begin() + index);
 		return true;
@@ -319,6 +326,7 @@ struct Player
 
 			bool placeOnBoard = false;
 			HexCoord mergedPos;
+			int survivorSlot = 0; // 合成後に「残る1体」とみなす素材(位置を引き継ぐ盤面の1体。盤面に居なければ先頭)。
 			std::vector<size_t> boardIndices, benchIndices;
 			for (int i = 0; i < 3; ++i)
 			{
@@ -326,12 +334,27 @@ struct Player
 				{
 					placeOnBoard = true;
 					mergedPos = board[locations[i].index].homePosition; // 戦闘中の移動先ではなく、配置した元のマスを引き継ぐ。
+					survivorSlot = i;
 					boardIndices.push_back(locations[i].index);
 				}
 				else
 				{
 					benchIndices.push_back(locations[i].index);
 				}
+			}
+
+			// 装備の引き継ぎ(item-carryover): 残る1体の既存装備 → 他の2体の装備の順。erase前に控えておく。
+			auto unitAt = [&](const Location& loc) -> const UnitInstance&
+			{
+				return loc.onBoard ? board[loc.index] : bench[loc.index];
+			};
+			std::vector<const ItemDef*> survivorItems = unitAt(locations[survivorSlot]).items;
+			std::vector<const ItemDef*> otherItems;
+			for (int i = 0; i < 3; ++i)
+			{
+				if (i == survivorSlot) continue;
+				const auto& items = unitAt(locations[i]).items;
+				otherItems.insert(otherItems.end(), items.begin(), items.end());
 			}
 
 			// インデックスの大きい方から削除しないと、削除のたびに残りのインデックスがずれてしまう。
@@ -342,6 +365,14 @@ struct Player
 
 			UnitInstance merged(def);
 			merged.starLevel = newStarLevel;
+
+			// 残る1体の装備はそのまま、他2体の装備はGiveItemの規則(素材の自動合成・上限)で追加し、
+			// 装備しきれなかった分はアイテム欄へ戻す。
+			merged.items = survivorItems;
+			std::vector<const ItemDef*> overflow;
+			ItemSystem::CarryOverItems(merged, otherItems, overflow, name);
+			unclaimedItems.insert(unclaimedItems.end(), overflow.begin(), overflow.end());
+			NotifyMergeCarryOver(merged, survivorItems.size() + otherItems.size(), overflow);
 
 			if (placeOnBoard)
 			{
@@ -358,6 +389,64 @@ struct Player
 		}
 
 		return false;
+	}
+
+private:
+	static std::wstring JoinItemNames(const std::vector<const ItemDef*>& items)
+	{
+		std::wstring text;
+		for (const ItemDef* item : items)
+		{
+			if (item == nullptr) continue;
+			if (!text.empty()) text += L", ";
+			text += std::wstring(item->name.begin(), item->name.end()); // アイテム名はASCII。
+		}
+		return text;
+	}
+
+	/// <summary>
+	/// 売却されるunitの装備を全てunclaimedItemsの末尾へ戻し、通知を積む(item-carryover)。
+	/// </summary>
+	void ReturnItemsToUnclaimed(UnitInstance& unit)
+	{
+		if (unit.items.empty()) return;
+
+		std::wstring names = JoinItemNames(unit.items);
+		unclaimedItems.insert(unclaimedItems.end(), unit.items.begin(), unit.items.end());
+		unit.items.clear();
+
+		itemNotices.push_back(L"売却: 装備をアイテム欄に戻しました (" + names + L")");
+
+		std::wstring log = L"[" + std::wstring(name.begin(), name.end()) + L"] sell: items returned to unclaimed ("
+			+ names + L")\n";
+		OutputDebugString(log.c_str());
+	}
+
+	/// <summary>
+	/// 合成時の装備引き継ぎ結果を通知・ログに出す。素材3体とも装備が無ければ何もしない(item-carryover)。
+	/// </summary>
+	void NotifyMergeCarryOver(const UnitInstance& merged, size_t carriedCount, const std::vector<const ItemDef*>& overflow)
+	{
+		if (carriedCount == 0) return;
+
+		wchar_t head[64];
+		swprintf_s(head, L"合成★%d: ", merged.starLevel);
+		std::wstring notice = head;
+		if (!merged.items.empty())
+		{
+			notice += L"装備を引き継ぎました (" + JoinItemNames(merged.items) + L")";
+		}
+		if (!overflow.empty())
+		{
+			if (!merged.items.empty()) notice += L" / ";
+			notice += L"枠超過でアイテム欄へ (" + JoinItemNames(overflow) + L")";
+		}
+		itemNotices.push_back(notice);
+
+		std::wstring log = L"[" + std::wstring(name.begin(), name.end()) + L"] merge "
+			+ std::wstring(merged.def->name.begin(), merged.def->name.end())
+			+ L": items=(" + JoinItemNames(merged.items) + L") overflow=(" + JoinItemNames(overflow) + L")\n";
+		OutputDebugString(log.c_str());
 	}
 };
 
