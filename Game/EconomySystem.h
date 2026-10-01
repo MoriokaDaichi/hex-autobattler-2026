@@ -21,7 +21,8 @@ public:
 	static const int kBaseIncome = 5;       // 毎ラウンド必ずもらえる基本収入。
 	static const int kGoldPerInterest = 10; // このゴールドごとに利子が+1される。
 	static const int kMaxInterest = 5;      // 利子の上限(50ゴールド以上持っていても+5で頭打ち)。
-	static const int kWinStreakGoldPerWin = 5;     // 連勝ボーナス = この値 × 連勝数(上限なし)。
+	static const int kWinStreakBaseBonus = 10;     // 連勝ボーナスが付き始めた時(2連勝)の額。
+	static const int kWinStreakGoldPerWin = 2;     // 以降、1連勝ごとに増える額(上限なし)。
 	static const int kWinStreakBonusMinStreak = 2; // 連勝ボーナスが付き始める連勝数。
 	static const int kWinStreakItemMinStreak = 5;  // この連勝数以上では、勝つたびに素材アイテムが追加で1つ付く。
 
@@ -36,7 +37,7 @@ public:
 		int interest = player.gold / kGoldPerInterest;
 		if (interest > kMaxInterest) interest = kMaxInterest;
 
-		// 連勝と連敗は別の表(連勝は5ずつ伸び続け、連敗は+3で頭打ち)。引き分けはボーナス無し。
+		// 連勝と連敗は別の表(連勝は2ずつ伸び続け、連敗は+3で頭打ち)。引き分けはボーナス無し。
 		int streakBonus = 0;
 		if (result == CombatResult::Win) streakBonus = GetWinStreakBonus(player.winStreak);
 		else if (result == CombatResult::Loss) streakBonus = GetLossStreakBonus(player.lossStreak);
@@ -51,13 +52,13 @@ public:
 	}
 
 	/// <summary>
-	/// 連勝数に応じたゴールドボーナスを返す。2連勝以上で 5×連勝数(2で+10, 3で+15, ...上限なし)。
+	/// 連勝数に応じたゴールドボーナスを返す。2連勝で+10、以降1連勝ごとに+2(3で+12, 4で+14, ...上限なし)。
 	/// ツールチップからも参照するためstatic。
 	/// </summary>
 	static int GetWinStreakBonus(int winStreak)
 	{
 		if (winStreak < kWinStreakBonusMinStreak) return 0;
-		return kWinStreakGoldPerWin * winStreak;
+		return kWinStreakBaseBonus + kWinStreakGoldPerWin * (winStreak - kWinStreakBonusMinStreak);
 	}
 
 	/// <summary>

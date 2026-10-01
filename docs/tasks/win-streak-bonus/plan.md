@@ -7,10 +7,10 @@ intent.md を前提とする。
 ### 1. `Game/EconomySystem.h`
 - 連勝と連敗で表を分離する。共通の `GetStreakBonus` を廃止し、以下の public static 関数に置き換える
   (ツールチップからも参照するため public static)。
-  - `GetWinStreakBonus(int winStreak)`: `winStreak >= 2` なら `5 * winStreak`、それ以外 0。上限なし。
+  - `GetWinStreakBonus(int winStreak)`: `winStreak >= 2` なら `10 + 2 * (winStreak - 2)`、それ以外 0。上限なし(当初の5×連勝数から+2刻みに変更)。
   - `GetLossStreakBonus(int lossStreak)`: 従来どおり 2で+1、3-4で+2、5以上で+3。
 - 定数を追加:
-  - `kWinStreakGoldPerWin = 5`(連勝ボーナス = この値 × 連勝数)
+  - `kWinStreakBaseBonus = 10`(2連勝時の額)、`kWinStreakGoldPerWin = 2`(以降1連勝ごとの増分)
   - `kWinStreakBonusMinStreak = 2`(連勝ボーナスが付き始める連勝数)
   - `kWinStreakItemMinStreak = 5`(勝利時に素材アイテムが追加で1つ付く連勝数)
 - `GrantRoundIncome` は勝ち→`GetWinStreakBonus`、負け→`GetLossStreakBonus`、引き分け→0。
