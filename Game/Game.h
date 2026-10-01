@@ -33,6 +33,7 @@
 #include "UIInteractionSystem.h"
 #include "TooltipContentBuilder.h"
 #include "TooltipUIRenderer.h"
+#include "HelpUIRenderer.h"
 
 class Game : public IGameObject
 {
@@ -118,6 +119,11 @@ private:
 	std::vector<std::wstring> m_tooltipLines; // 表示中の内容(TooltipContentBuilder::Buildの結果)。
 	Vector2 m_tooltipAnchor;           // 表示位置の基準点(UI_SPACE座標)。
 	static constexpr float kHoverDelaySec = 0.3f; // マウスホバーでツールチップが出るまでの継続時間。
+
+	// ヘルプボタン(画面左上)とカテゴリ別の説明パネル(help-panel)。全フェーズで開閉できる。開いている間は
+	// ヒット領域がヘルプ用だけに差し替わり、タイトル/準備/終了画面のパッド入力も止まる(戦闘・結果は止めない)。
+	// docs/tasks/help-panel/plan.md参照。
+	HelpUIRenderer m_helpUI;
 
 	// マウス操作専用: ベンチのユニットを左クリックで「掴んだ」状態。盤面の空きマスを左クリックすると
 	// Player::PlaceUnitOnBoard()を呼んで確定する(ゲームパッドXボタンの配置ロジックを流用、新しい
