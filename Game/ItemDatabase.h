@@ -19,8 +19,27 @@ struct ItemRecipe
 class ItemDatabase
 {
 public:
+	ItemDatabase() = default;
+	ItemDatabase(const ItemDatabase&) = delete;
+	ItemDatabase& operator=(const ItemDatabase&) = delete;
+
+	~ItemDatabase()
+	{
+		if (ActiveSlot() == this) ActiveSlot() = nullptr;
+	}
+
+	/// <summary>
+	/// 最後にInit()されたItemDatabase(実体はGame::m_itemDatabaseの1つだけ)を返す。未初期化ならnullptr。
+	/// 引数でDBを受け取れないPlayer::TryMergeUnits()が、装備引き継ぎ時の素材自動合成(レシピ参照)に使う(item-carryover)。
+	/// </summary>
+	static const ItemDatabase* GetActive()
+	{
+		return ActiveSlot();
+	}
+
 	void Init()
 	{
+		ActiveSlot() = this;
 		m_itemDefs.clear();
 		m_recipes.clear();
 
@@ -266,6 +285,12 @@ public:
 	}
 
 private:
+	static const ItemDatabase*& ActiveSlot()
+	{
+		static const ItemDatabase* s_active = nullptr;
+		return s_active;
+	}
+
 	std::vector<ItemDef> m_itemDefs;
 	std::vector<ItemRecipe> m_recipes;
 };
