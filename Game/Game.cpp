@@ -41,6 +41,7 @@ bool Game::Start()
 	m_itemDatabase.Init();
 	m_hexGridRenderer.Init();
 	m_uiRectRenderer.Init();
+	m_helpUI.Init(m_traitDatabase, m_itemDatabase); // 説明文はトレイト/アイテムのデータベースから生成する(help-panel)。
 
 	// 盤面(ヘックスグリッド q:0-8, r:0-5 の6行×9列。HexGridRenderer::CalcTileCenterの座標系で
 	// 概ね X:±470, Z:±190 に収まる)全体が画角に入るよう、盤面中心(ワールド原点)を見下ろす角度・
@@ -187,7 +188,11 @@ void Game::Update()
 	}
 
 	// マウス・キーボード・ゲームパッドを横断するカーソル/選択状態を更新する。
-	m_cursorSelection.Update();
+	// ヘルプ表示中は止める(十字キー/矢印がヘルプのカテゴリ・ページ切り替えと二重に効かないように。help-panel)。
+	if (!m_helpUI.IsOpen())
+	{
+		m_cursorSelection.Update();
+	}
 
 	// ショップUIの操作フィードバック(数秒で自動的に消える)の残り時間を進める。
 	m_shopUI.UpdateFeedbackTimer(g_gameTime->GetFrameDeltaTime());
@@ -256,9 +261,28 @@ void Game::Update()
 	{
 		m_resultUI.BuildHotRegions(true, m_hotRegions);
 	}
+	// ヘルプ(help-panel): 閉じている時はヘルプボタンを足すだけ。開いている時はヒット領域をヘルプ用だけに
+	// 差し替える(パネル外クリックで盤面等が反応しない)。他の全BuildHotRegions()の後に呼ぶこと。
+	m_helpUI.BuildHotRegions(m_hotRegions);
 	m_uiInteraction.Update(m_hotRegions);
 
-	if (m_gameState.currentPhase == Phase::Title)
+	// ヘルプの開閉・カテゴリ/ページ切り替え。開いている間(と、B/Escで閉じたそのフレーム)は、タイトル/準備/
+	// 終了画面のパッド・キーボード入力処理を丸ごとスキップする(閉じたBで戦闘開始してしまう等を防ぐ)。
+	// 戦闘・結果フェーズは入力を使わず、進行も止めないため対象外。docs/tasks/help-panel/plan.md §5。
+	const bool helpWasOpen = m_helpUI.IsOpen();
+	m_helpUI.UpdateInput(m_uiInteraction);
+	const Phase inputPhase = m_gameState.currentPhase;
+	const bool helpBlocksInput = (helpWasOpen || m_helpUI.IsOpen())
+		&& (inputPhase == Phase::Title || inputPhase == Phase::Preparation
+			|| inputPhase == Phase::GameOver || inputPhase == Phase::Victory);
+
+	if (helpBlocksInput)
+	{
+		// ヘルプ表示中: 何もしない(フェーズも遷移しない)。
+		// ドラッグ中にヘルプを開いた場合、名札やハイライトがパネルの上に残らないよう取り消す。
+		m_dragDrop.Cancel();
+	}
+	else if (m_gameState.currentPhase == Phase::Title)
 	{
 		// セーブデータが有る場合は「[A] 続きから / [X] 新規開始」、無い場合は従来どおり「[A] 開始」。
 		const bool hasSave = m_saveSystem.SaveFileExists();
@@ -1481,6 +1505,7 @@ void Game::Render(RenderContext& rc)
 		{
 			m_tooltipUI.Draw(rc, m_tooltipLines, m_tooltipAnchor, m_uiRectRenderer);
 		}
+		m_helpUI.Draw(rc, m_uiRectRenderer); // ヘルプボタン/パネル(help-panel)。最前面。
 		return;
 	}
 
@@ -1580,4 +1605,7 @@ void Game::Render(RenderContext& rc)
 	{
 		m_tooltipUI.Draw(rc, m_tooltipLines, m_tooltipAnchor, m_uiRectRenderer);
 	}
+
+	// ヘルプボタン/パネル(help-panel)。ツールチップよりさらに後に登録し、最前面に描く。
+	m_helpUI.Draw(rc, m_uiRectRenderer);
 }

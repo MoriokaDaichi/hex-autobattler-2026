@@ -63,6 +63,12 @@
     <ClCompile Include="TooltipUIRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="HelpContent.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="HelpUIRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="UnitModelDisplay.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -152,6 +158,12 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="TooltipUIRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="HelpContent.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="HelpUIRenderer.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="UIStyle.h">

@@ -27,6 +27,13 @@ enum class UIRegionKind
 	HudBoardCountDisplay,
 	HudRoundDisplay,
 	HudStreakDisplay,
+	// ヘルプ(help-panel、HelpUIRenderer)。全フェーズ共通。パネル表示中はヒット領域がこれらだけに差し替わる。
+	HelpButton,      // 画面左上の「ヘルプ」ボタン(開閉)。
+	HelpClose,       // パネル右上の「閉じる」ボタン。
+	HelpCategoryTab, // index = カテゴリ番号。
+	HelpPrevPage,
+	HelpNextPage,
+	HelpBlocker,     // パネル表示中の全画面。パネル外クリックで盤面等が反応しないようにする(何もしない)。
 };
 
 /// <summary>

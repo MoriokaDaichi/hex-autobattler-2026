@@ -237,6 +237,8 @@
     <ClCompile Include="UITextUtil.cpp" />
     <ClCompile Include="TooltipContentBuilder.cpp" />
     <ClCompile Include="TooltipUIRenderer.cpp" />
+    <ClCompile Include="HelpContent.cpp" />
+    <ClCompile Include="HelpUIRenderer.cpp" />
     <ClCompile Include="GameState.cpp" />
     <ClCompile Include="HexCoord.cpp" />
     <ClCompile Include="HexGridRenderer.cpp" />
@@ -275,6 +277,8 @@
     <ClInclude Include="UITextUtil.h" />
     <ClInclude Include="TooltipContentBuilder.h" />
     <ClInclude Include="TooltipUIRenderer.h" />
+    <ClInclude Include="HelpContent.h" />
+    <ClInclude Include="HelpUIRenderer.h" />
     <ClInclude Include="UIStyle.h" />
     <ClInclude Include="GameState.h" />
     <ClInclude Include="HexCoord.h" />

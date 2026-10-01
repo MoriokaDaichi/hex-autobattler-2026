@@ -12,6 +12,10 @@ class ShopSystem
 public:
 	static const int kMinUnitCost = 1;
 	static const int kMaxUnitCost = 5;
+	// リロール1回のゴールド。help-panelでヘルプ文言の参照用に追加した。Game.cpp内のローカル定数
+	// kRerollCost(Update()のY/Rerollボタン処理とRender()のShopUIRenderer::Draw引数の2箇所)と同値。
+	// 並行作業(drag-and-drop)とのマージ衝突を避けるため、Game.cpp側は今回は触らずに後日この定数へ寄せる。
+	static const int kRerollCost = 2;
 
 	/// <summary>
 	/// 指定したUnitDatabaseから、levelに応じたコスト帯の出現率で、ランダムに5枠分のユニットを選ぶ。
@@ -54,12 +58,12 @@ public:
 		return result;
 	}
 
-private:
 	/// <summary>
 	/// レベル(1〜9)に応じた、コスト1〜5ユニットの出現率テーブル(%、各行合計100)を返す。
 	/// レベルが上がるほど高コスト帯の出現率が上がっていく。
 	/// </summary>
-	const int* GetCostOdds(int level) const
+	/// help-panel: ヘルプの出現率表から参照するためpublic staticにした(中身は変更なし)。
+	static const int* GetCostOdds(int level)
 	{
 		static const int kOddsTable[9][5] =
 		{
@@ -81,6 +85,7 @@ private:
 		return kOddsTable[index];
 	}
 
+private:
 	/// <summary>
 	/// oddsの重みに従って、コスト帯(1〜5)を1つ抽選する。そのコスト帯に該当するユニットが
 	/// 1体も存在しない(byCost[cost]が空)場合は、その帯の重みを除外して抽選し直す。
