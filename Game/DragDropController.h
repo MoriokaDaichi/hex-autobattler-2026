@@ -112,7 +112,7 @@ private:
 	/// <summary>ドラッグ元(m_source)と位置から、ドロップ先を解決する。</summary>
 	DropTarget ResolveDrop(const UIHotRegionList& hotRegions, const Vector2& uiPos) const;
 
-	/// <summary>ドラッグ元がまだ押下時と同じ実体か(ドラッグ中にパッド操作等で一覧が変わっていないか)。</summary>
+	/// <summary>ドラッグ元がまだ押下時と同じ実体か(ドラッグ中に他の処理で一覧が変わっていないか)。</summary>
 	bool IsSourceStillValid(const Player& player) const;
 
 	/// <summary>ドロップを確定し、Player/ItemSystemの既存エントリポイントを呼ぶ。</summary>

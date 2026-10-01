@@ -291,7 +291,7 @@ bool DragDropController::IsSourceStillValid(const Player& player) const
 void DragDropController::ExecuteDrop(const DropTarget& target, Player& player, ItemSystem& itemSystem,
 	const ItemDatabase& itemDatabase, ShopUIRenderer& feedback)
 {
-	// 実処理は既存クリック/パッド操作と同じPlayer::*/ItemSystem::*のエントリポイントを呼び、
+	// 実処理は既存クリック操作と同じPlayer::*/ItemSystem::*のエントリポイントを呼び、
 	// フィードバック文言も既存に揃える(ドメインロジックの二重実装はしない)。
 	switch (target.kind)
 	{
