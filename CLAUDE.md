@@ -41,7 +41,7 @@
 
 - `Game/Game.sln` をVisual Studio（ツールセット v145、Windows SDK 10.0）で開き、`Game` プロジェクト（スタートアッププロジェクトに設定済み）をビルド／実行する。構成: `Debug`, `Preview`, `Release`。プラットフォーム: `x64`（メイン）と `x86`。
 - コマンドライン版: `msbuild Game/Game.sln /p:Configuration=Debug /p:Platform=x64`
-- 自動テストは存在しません。変更の確認は、ゲームを実行(F5)して該当するゲームパッド操作を行うか、デバッガの出力ウィンドウに出る `OutputDebugString` のログを読むことで行います（このゲームは画面上にUIテキストを描く代わりに、状態遷移の大半をここに出力しています）。
+- 自動テストは存在しません。変更の確認は、ゲームを実行(F5)してマウスで該当操作を行うか、デバッガの出力ウィンドウに出る `OutputDebugString` のログ（収入 `Income:` や戦闘ログなど、画面に出ない詳細）を読むことで行います。
 
 `Game.sln` は以下の順に依存関係を解決してビルドします: `DirectXTK12`、`BulletCollision`/`LinearMath`/`BulletDynamics`（Bullet Physics）→ `k2EngineLow` → `k2Engine` → `Game`。
 
@@ -66,15 +66,20 @@ tools/         独立したエディタツール群（例: シェーダーノー
 
 ## Game/ ― オートバトラー本体
 
-`Game.h`/`Game.cpp` がルートの `IGameObject` です。`Game::Update()` はフェーズ管理のステートマシン（`Phase::Preparation → Combat → Result`、終了状態として `GameOver`/`Victory`）になっており、ゲームパッド入力（`g_pad[0]`、ボタンA/B/X/Y/LB1/RB1）で直接駆動されます。メニューやUI層はまだ無く、`OutputDebugString` によるログ出力のみです。
+`Game.h`/`Game.cpp` がルートの `IGameObject` です。`Game::Update()` はフェーズ管理のステートマシン（`Phase::Preparation → Combat → Result`、終了状態として `GameOver`/`Victory`）になっています（前後に `Title` もある）。
+
+- **入力はマウスのみ**（2026-10-01にゲームパッド入力を廃止。`g_pad` は読まない）。クリック対象は毎フレーム `UIHotRegion` のリストとして登録し、`m_uiInteraction` がクリック/右クリック/ホバーを解決する。準備フェーズのドラッグ&ドロップは `DragDropController`。キーボードはキーを直接読むショートカット（F5セーブ、F1/Hでヘルプ、Esc等）のみ。
+- **UI** は `*UIRenderer` 系クラス（ショップ・ベンチ/頭上HPバー・トレイトパネル・アイテム一覧・プレイヤーステータス・戦績・ツールチップ・結果・タイトル・ヘルプ）がフォント/矩形描画で行う。UI座標は1920x1080・中央原点・y上向き。フォントに無い文字（★など）は「?」になるので使わない。ツールチップ文面は `TooltipContentBuilder`、ヘルプ文面は `HelpContent`（数値はコード上の定数から生成）。
 
 主要な型とその関係:
 
 - **`GameState`** ― 全体状態: `players`（`players[0]` のみ使用――人間プレイヤー1人 vs スクリプト敵）、`roundNumber`、`lossCount`、`currentPhase`。
 - **`Player`** ― 片陣営のユニット群（`bench`=未配置、`board`=盤面配置済みの `UnitInstance`）、ゴールド、レベル/経験値を保持。ユニット経済まわりの操作（`BuyUnit`、`PlaceUnitOnBoard`、`Sell*`、`TryMergeUnits`）を持つ。`TryMergeUnits` は同じユニット・同じスターが3体そろうと自動的に上位スターへ合成する処理で、bench/boardが変化するたびにチェックされる。
 - **`UnitDef`**（`UnitDatabase` が持つマスターデータ）と **`UnitInstance`**（`starLevel`・`currentHP`・位置・毎ラウンド再計算される `bonus*` 系ステータスを持つ実体）の分離パターンが随所で使われている（`ItemDef`/`TraitDef` と、その適用済み効果の関係も同様）。
-- **`HexCoord`** ― axial座標系のヘックスグリッド座標。盤面はq:0〜8, r:0〜2（0〜2が自陣、3〜5が中立地帯、6〜8が敵陣）で、`ToWorldPosition()` でワールド座標に変換される。
-- `Game::Update()` の `Combat` フェーズにおける1ラウンド分の処理順序: `EnemyFactory::CreateEnemyBoard`（`Game::BuildEnemyStages()` が返す、あらかじめ手で組んだ固定の `EnemyStage` テーブルから構築――ゴールドを消費して段階的に購入していくようなAIではない）→ `Player::ResetBoardPositions()` → `TraitSystem::ApplyTraitBonuses` → `ItemSystem::ApplyItemBonuses` → `StarLevelSystem::ApplyStarBonuses`（これらはいずれも `bonus*` 系フィールドを再計算し `currentHP` を全回復させるため、呼び出し順が重要）→ `CombatEngine::SimulateCombat`（描画を持たない純粋なシミュレーションで、`std::vector<CombatEvent>` を出力する）→ `CombatLogPrinter::Print`（イベント列をテキストとして `OutputDebugString` に出す。シミュレーションと表示をあえて分離した設計）→ `EconomySystem`/`LevelSystem` がラウンド終了時のゴールド/経験値を反映。
+- **`HexCoord`** ― axial座標系のヘックスグリッド座標。盤面はq:0〜8, r:0〜5の6行（0〜2が自陣、3〜5が敵陣）で、`ToWorldPosition()` でワールド座標に変換される。
+- `Game::Update()` の `Combat` フェーズにおける1ラウンド分の処理順序: `EnemyFactory::CreateEnemyBoard`（`Game::BuildEnemyStages()` が返す、あらかじめ手で組んだ固定の `EnemyStage` テーブルから構築――ゴールドを消費して段階的に購入していくようなAIではない）→ `Player::ResetBoardPositions()` → `TraitSystem::ApplyTraitBonuses` → `ItemSystem::ApplyItemBonuses` → `StarLevelSystem::ApplyStarBonuses`（これらはいずれも `bonus*` 系フィールドを再計算し `currentHP` を全回復させるため、呼び出し順が重要）→ `CombatEngine::SimulateCombat`（描画を持たない純粋なシミュレーションで、`std::vector<CombatEvent>` を出力する）→ `CombatLogPrinter::Print`（イベント列をテキストとして `OutputDebugString` に出す。シミュレーションと表示をあえて分離した設計）→ `CombatPlayback` がイベント列を時系列で再生（ユニットの移動・アニメ・ダメージ数字）→ 再生完了後に `Game::ApplyCombatOutcome` で `EconomySystem`/`LevelSystem` のゴールド/経験値、勝利報酬、ラウンド進行を反映（再生中にHUDで勝敗が先に分からないよう、反映は必ず再生後）。
+- 準備フェーズのツールチップは、盤面/ベンチの**写し**に Trait→Item→Star の補正を適用して「基礎+補正」を表示する（実体のユニットには触れない。Apply*はHP全回復の副作用があるため）。
+- 合成（`TryMergeUnits`）では素材の装備を合成後のユニットに引き継ぎ、上限超過分と売却時の装備は `unclaimedItems` に戻す。
 - **`CombatEngine`** はユニットごとの `nextActionTime` という内部時計を使ったイベント駆動シミュレーションで（固定の行動順ではない）、両陣営が「ウェーブ」単位で交互に行動する。移動は最も近い敵に向かう貪欲な隣接ヘックス移動のみ（本格的な経路探索・障害物回避は無し）。通常攻撃か必殺技かは、ゲージ（`normalAttackCount + receivedAttackCount`）と `skillThreshold` の比較で決まる。
 - **`TraitSystem`**/**`ItemSystem`**/**`StarLevelSystem`** はいずれもステートレスなサービスで、盤面と該当するデータベースを受け取り、毎ラウンド各ユニットの `bonus*` 系フィールドをゼロから再計算する（持続・蓄積するバフは無い）。
 - データ定義用のヘッダー（`TraitDef.h`, `ItemDef.h`, `AttackType.h`, `TraitType.h`, `StatEffect.h`, `EnemyStage.h`）や一部のシステム系ヘッダーには対応する `.cpp` が存在しない。ヘッダーオンリー（構造体定義、または完全にインライン実装されたクラス）のためで、実装ファイルが欠落しているわけではない。
