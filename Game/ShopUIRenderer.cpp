@@ -44,6 +44,22 @@ namespace
 	// (scale1.0基準)で、描画位置はテキスト上端(kTopLeftPivot相当)。中央に見えるよう半分下げる。
 	const float kButtonLabelYOffset = 33.0f * 0.5f * kButtonLabelScale;
 
+	// --- 戦闘開始(NextPhase)ボタン(playtest-quickfix-1 E) ---
+	// ショップ操作(Reroll/BuyXP/Lock)とは役割が違うため、ヘッダー行の横並びから外して画面右下
+	// (ショップカード5枚目の上)に独立した大きいボタンとして置く。UI_SPACE(1920x1080、中央原点・y上向き)で
+	// 中心(790,-305)・300x72 → x:640〜940(画面右端960の内側)、y:-341〜-269。
+	//  - 下: ショップカード5枚目の上端(y≒-402)まで約60px空く。
+	//  - 上: ITEMS一覧(x≒518〜、y=+270から40px/行)は12件以下なら下端が-269より上に収まる。
+	//  - 左: ヘッダー行のボタン(右端 x=250)・盤面(カメラ投影で概ね x≒-300〜+260)とは重ならない。
+	const float kBattleButtonCenterX = 790.0f;
+	const float kBattleButtonCenterY = -305.0f;
+	const float kBattleButtonWidth = 300.0f;
+	const float kBattleButtonHeight = 72.0f;
+	const float kBattleButtonLabelScale = 0.85f;
+	const float kBattleButtonLabelYOffset = 33.0f * 0.5f * kBattleButtonLabelScale; // kButtonLabelYOffsetと同じ考え方。
+	const Vector4 kBattleButtonColor(0.78f, 0.32f, 0.12f, 0.95f); // ショップ系ボタン(灰)と区別する朱/橙系。
+	const Vector4 kBattleButtonLabelColor(1.0f, 0.97f, 0.9f, 1.0f);
+
 	const Vector4 kButtonColor(0.28f, 0.28f, 0.34f, 0.92f);
 	const Vector4 kButtonLockedColor(0.55f, 0.44f, 0.10f, 0.92f); // ロック中は琥珀寄りにして状態を示す。
 	const Vector4 kButtonLabelColor(0.92f, 0.92f, 0.95f, 1.0f);
@@ -180,7 +196,11 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 		drawButton(0, kButtonColor);                                    // Reroll
 		drawButton(1, kButtonColor);                                    // BuyXP
 		drawButton(2, m_shopLocked ? kButtonLockedColor : kButtonColor); // Lock
-		drawButton(3, kButtonColor);                                    // NextPhase
+
+		// 戦闘開始(NextPhase)は画面右下に大きく独立配置(枠は選択色の太枠で目立たせる)。
+		m_rectRenderer->DrawPanel(rc, Vector2(kBattleButtonCenterX, kBattleButtonCenterY),
+			Vector2(kBattleButtonWidth, kBattleButtonHeight), kBattleButtonColor,
+			UIStyle::kSelectedBorderColor, UIStyle::kSelectedBorderThickness, kCenterPivot);
 
 		// ショップ5枠のカード(ui-mouse-cardsフェーズ3、plan.md §4-2)。枠色はコストティア色、
 		// 選択中(キーボード/パッド)は太く金色、ホバー中(マウス)は水色でハイライトする。
@@ -260,7 +280,12 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 		drawLabel(1, buyXpLabel);
 
 		drawLabel(2, m_shopLocked ? L"Locked" : L"Lock");
-		drawLabel(3, L"Next Round");
+
+		// 戦闘開始ボタンのラベル(ゲームパッドのBボタンにも対応することを併記する)。
+		const wchar_t* battleLabel = L"戦闘開始 [B]";
+		float battleLabelWidth = UITextUtil::EstimateTextWidth(battleLabel, kBattleButtonLabelScale);
+		Vector2 battleLabelPos(kBattleButtonCenterX - battleLabelWidth * 0.5f, kBattleButtonCenterY + kBattleButtonLabelYOffset);
+		m_font.Draw(battleLabel, battleLabelPos, kBattleButtonLabelColor, 0.0f, kBattleButtonLabelScale, kTopLeftPivot);
 	}
 
 	// --- 5枠のカード(名前行 + 詳細行の2行) ---
@@ -333,5 +358,15 @@ void ShopUIRenderer::BuildHotRegions(const std::vector<const UnitDef*>& shop, UI
 	addButton(0, UIRegionKind::RerollButton);
 	addButton(1, UIRegionKind::BuyXpButton);
 	addButton(2, UIRegionKind::LockButton);
-	addButton(3, UIRegionKind::NextPhaseButton);
+
+	// 戦闘開始(NextPhase)ボタン。描画と同じ定数から矩形を作る(画面右下の独立配置)。
+	{
+		UIHotRegion region;
+		region.kind = UIRegionKind::NextPhaseButton;
+		region.minX = kBattleButtonCenterX - kBattleButtonWidth * 0.5f;
+		region.maxX = kBattleButtonCenterX + kBattleButtonWidth * 0.5f;
+		region.minY = kBattleButtonCenterY - kBattleButtonHeight * 0.5f;
+		region.maxY = kBattleButtonCenterY + kBattleButtonHeight * 0.5f;
+		out.push_back(region);
+	}
 }

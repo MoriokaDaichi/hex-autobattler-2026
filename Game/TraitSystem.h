@@ -15,8 +15,10 @@ public:
 	/// boardのトレイト構成を集計し、各ユニットのbonusAttack/bonusMaxHPを再計算する。
 	/// 併せてcurrentHPを(baseHP + bonusMaxHP)まで全回復させる。
 	/// トレイト構成は戦闘開始時点で固定するため、戦闘直前(SimulateCombatの前)に呼ぶことを想定している。
+	/// logEnabled=false でOutputDebugStringへのログを抑止する(準備フェーズのツールチップが盤面の写しに対して
+	/// 毎フレーム呼ぶため。playtest-quickfix-1 B)。
 	/// </summary>
-	void ApplyTraitBonuses(std::vector<UnitInstance>& board, const TraitDatabase& traitDatabase, const std::string& ownerName)
+	void ApplyTraitBonuses(std::vector<UnitInstance>& board, const TraitDatabase& traitDatabase, const std::string& ownerName, bool logEnabled = true)
 	{
 		// この関数は戦闘直前(=毎ラウンド開始時)に1回だけ呼ばれ、その中でHPも全回復させる。
 		// つまりboard上のユニットは前回の戦闘結果に関わらず全員が今回の参加メンバーなので、
@@ -51,7 +53,10 @@ public:
 			unit.currentHP = unit.def->baseHP + unit.bonusMaxHP;
 		}
 
-		LogActiveTraits(traitCounts, traitDatabase, ownerName);
+		if (logEnabled)
+		{
+			LogActiveTraits(traitCounts, traitDatabase, ownerName);
+		}
 	}
 
 	/// <summary>

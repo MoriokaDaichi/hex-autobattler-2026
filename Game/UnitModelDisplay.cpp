@@ -47,6 +47,11 @@ void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
 {
 	RebuildIfBoardChanged(board);
 
+	// board 駆動時の向き(playtest-quickfix-1 C)。再生駆動(UpdateFromPlayback)と同じ式で求めるので、
+	// kModelYawOffsetRad を変えた場合も両者の向きの基準が揃う。
+	Quaternion idleRot;
+	idleRot.SetRotationY(atan2f(m_idleFacingDir.x, m_idleFacingDir.z) + kModelYawOffsetRad);
+
 	// 表示位置はHexGridRendererのグリッド線・ゾーン塗りと同じ座標系(盤面中心が原点)に合わせる。
 	// モデルの再ロードは伴わない軽い処理なので、位置同期とアニメーション更新は毎フレーム行う。
 	// Windows.hのmin/maxマクロとの衝突を避けるため、std::minは使わずに手書きする。
@@ -72,7 +77,9 @@ void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
 		}
 		// 再生駆動用の向き補間状態(lastRot)は board 駆動では使わない。次回の再生開始時に古い値を
 		// 持ち越さないよう、待機のみで再生を終えたエントリも含めて毎フレームここでリセットしておく。
-		e.lastRot = Quaternion::Identity;
+		// リセット先は今表示している向き(idleRot)にする。再生開始時の Slerp がこの向きから始まるため、
+		// 手前向きの敵が戦闘開始の瞬間に奥向きへ一旦振られる(180度回転して見える)ことが無い。
+		e.lastRot = idleRot;
 
 		Vector3 worldPos = HexGridRenderer::CalcTileCenter(unit.position.q, unit.position.r);
 
@@ -84,7 +91,7 @@ void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
 		// 足元がヘックス平面(y=0)に乗るよう、実効スケールに比例して持ち上げる(めり込み対策)。
 		worldPos.y += kUnitModelHalfHeightAtScale1 * kUnitModelScale.x * starScale;
 
-		modelRender.SetTRS(worldPos, Quaternion::Identity, modelScale);
+		modelRender.SetTRS(worldPos, idleRot, modelScale);
 		modelRender.SetAnimationSpeed(1.0f); // 再生駆動時に変更された速度が残らないよう、board駆動では常に等倍に戻す。
 		modelRender.Update();
 	}

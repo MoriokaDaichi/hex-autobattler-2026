@@ -16,8 +16,10 @@ public:
 	/// boardの各ユニットについて、スターレベルに応じたステータス倍率分をbonus系フィールドに加算する。
 	/// TraitSystem::ApplyTraitBonuses/ItemSystem::ApplyItemBonusesの後に呼ぶことを想定している
 	/// (それらのボーナスに上乗せする)。併せてcurrentHPも最終的な最大値まで再度全回復させる。
+	/// logEnabled=false でOutputDebugStringへのログを抑止する(準備フェーズのツールチップが盤面の写しに対して
+	/// 毎フレーム呼ぶため。playtest-quickfix-1 B)。
 	/// </summary>
-	void ApplyStarBonuses(std::vector<UnitInstance>& board, const std::string& ownerName)
+	void ApplyStarBonuses(std::vector<UnitInstance>& board, const std::string& ownerName, bool logEnabled = true)
 	{
 		for (auto& unit : board)
 		{
@@ -32,6 +34,8 @@ public:
 			unit.bonusMagicDefense += (int)(unit.def->magicDefense * bonusMultiplier);
 
 			unit.currentHP = unit.def->baseHP + unit.bonusMaxHP;
+
+			if (!logEnabled) continue;
 
 			wchar_t buf[256];
 			swprintf_s(buf, L"[%hs] %hs is %d-star!\n", ownerName.c_str(), unit.def->name.c_str(), unit.starLevel);

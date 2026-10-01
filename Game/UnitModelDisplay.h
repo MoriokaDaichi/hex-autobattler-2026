@@ -23,9 +23,16 @@ public:
 	/// <summary>
 	/// 毎フレーム呼ぶ。盤面構成(board)が前フレームから変化していれば表示用モデルを再構築し、
 	/// 変化の有無に関わらず各モデルの位置とアニメーション状態を更新する。
-	/// (準備/結果フェーズ用。位置は board[i].position、向きは無し、アニメは再生しない=バインドポーズ。)
+	/// (準備/結果フェーズ用。位置は board[i].position、向きは SetIdleFacingDir() の方向で固定、idle アニメ。)
 	/// </summary>
 	void Update(const std::vector<UnitInstance>& board);
+
+	/// <summary>
+	/// board 駆動(Update)時に全モデルを向かせる方向(XZ平面)を設定する。既定は +Z(敵陣 = 画面奥の方向)。
+	/// 敵盤面用インスタンスには -Z(手前 = プレイヤー側)を設定する(playtest-quickfix-1 C)。
+	/// 戦闘再生(UpdateFromPlayback)の向きには影響しない。
+	/// </summary>
+	void SetIdleFacingDir(const Vector3& dir) { m_idleFacingDir = dir; }
 
 	/// <summary>
 	/// 戦闘再生中に毎フレーム呼ぶ。CombatPlayback のユニットビュー配列(プレイヤー slice または
@@ -87,4 +94,7 @@ private:
 	std::vector<DisplayEntry> m_displayEntries;      // boardと同じ並び順で対応する表示用モデル一式。
 	// 前回のUpdate()時点でのboard構成(変化検出用)。各要素は{UnitDef*, starLevel}の組。
 	std::vector<std::pair<const UnitDef*, int>> m_lastBoardSignature;
+	// board 駆動時の向き(SetIdleFacingDir)。既定の +Z は再生駆動と同じ式で Quaternion::Identity 相当になり、
+	// 従来(向き無し = Identity)と同じ見た目になる。
+	Vector3 m_idleFacingDir = Vector3(0.0f, 0.0f, 1.0f);
 };

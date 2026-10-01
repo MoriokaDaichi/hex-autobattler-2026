@@ -57,8 +57,10 @@ public:
 	/// boardの各ユニットが持つアイテムの効果を集計し、bonusAttack/bonusMaxHPに加算する。
 	/// TraitSystem::ApplyTraitBonusesの後に呼ぶことを想定している(トレイト分に上乗せする)。
 	/// 併せてcurrentHPを(baseHP + bonusMaxHP)まで全回復させる。
+	/// logEnabled=false でOutputDebugStringへのログを抑止する(準備フェーズのツールチップが盤面の写しに対して
+	/// 毎フレーム呼ぶため。playtest-quickfix-1 B)。
 	/// </summary>
-	void ApplyItemBonuses(std::vector<UnitInstance>& board, const std::string& ownerName)
+	void ApplyItemBonuses(std::vector<UnitInstance>& board, const std::string& ownerName, bool logEnabled = true)
 	{
 		for (auto& unit : board)
 		{
@@ -72,7 +74,7 @@ public:
 
 			unit.currentHP = unit.def->baseHP + unit.bonusMaxHP;
 
-			if (!unit.items.empty())
+			if (logEnabled && !unit.items.empty())
 			{
 				LogEquippedItems(unit, ownerName);
 			}

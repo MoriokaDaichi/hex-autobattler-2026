@@ -7,6 +7,8 @@
 #include "TraitDef.h"
 #include "TraitDatabase.h"
 #include "TraitSystem.h"
+#include "ItemSystem.h"
+#include "StarLevelSystem.h"
 #include "UnitInstance.h"
 #include "Player.h"
 #include "GameState.h"
@@ -65,7 +67,70 @@ namespace
 		}
 	}
 
-	// bench/board上のUnitInstance向け。UnitDef概要 + 星 + 適用中ボーナス + 装備アイテムを追加する。
+	// --- 準備フェーズ用の補正込みプレビュー(playtest-quickfix-1 B) ---
+	// UnitInstance::bonus*系は戦闘突入時のApply*でしか更新されないため、準備フェーズでは前回戦闘時点の
+	// 値(初回は0)が残っている。ツールチップでは盤面/ベンチの"写し"に対して戦闘突入時と同じ順序
+	// (Trait → Item → Star)で再計算した値を表示する。Apply*はcurrentHP全回復・シールドリセットの副作用を
+	// 持つが、写しに対してのみ呼ぶので実際のplayers[0]の状態(戦闘開始時の状態・HP表示)には影響しない。
+	// 毎フレーム組み立て直すため、盤面/ベンチ/装備が変化すれば自動的に最新の補正になる。
+
+	// bonus*系をゼロに戻す(TraitSystem::ApplyTraitBonusesの冒頭リセットと同じ項目)。
+	void ResetBonusFields(UnitInstance& unit)
+	{
+		unit.bonusAttack = 0;
+		unit.bonusMagicPower = 0;
+		unit.bonusMaxHP = 0;
+		unit.bonusPhysicalDefense = 0;
+		unit.bonusMagicDefense = 0;
+		unit.bonusSkillThreshold = 0;
+		unit.bonusAttackSpeed = 0.0f;
+		unit.shieldAmount = 0;
+	}
+
+	// プレイヤー盤面の写しを作り、戦闘突入時(Game::Update()のCombat突入フレーム)と同じ順序で補正を適用して返す。
+	// 各SystemはステートレスなのでGameのメンバーを借りずにローカルで生成する。ログは毎フレーム出さないよう抑止する。
+	std::vector<UnitInstance> BuildBoardPreview(const Player& player, const TraitDatabase& traitDatabase)
+	{
+		std::vector<UnitInstance> preview = player.board;
+		TraitSystem traitSystem;
+		ItemSystem itemSystem;
+		StarLevelSystem starLevelSystem;
+		traitSystem.ApplyTraitBonuses(preview, traitDatabase, player.name, /*logEnabled=*/false);
+		itemSystem.ApplyItemBonuses(preview, player.name, /*logEnabled=*/false);
+		starLevelSystem.ApplyStarBonuses(preview, player.name, /*logEnabled=*/false);
+		return preview;
+	}
+
+	// ベンチのユニット1体分の写し。トレイトは盤面に出ているユニットにしか発動しないため、
+	// bonus*をゼロに戻してからアイテムと星の補正だけを適用する。
+	UnitInstance BuildBenchPreview(const UnitInstance& unit)
+	{
+		std::vector<UnitInstance> preview{ unit };
+		ResetBonusFields(preview[0]);
+		ItemSystem itemSystem;
+		StarLevelSystem starLevelSystem;
+		itemSystem.ApplyItemBonuses(preview, "", /*logEnabled=*/false);
+		starLevelSystem.ApplyStarBonuses(preview, "", /*logEnabled=*/false);
+		return preview[0];
+	}
+
+	// 「基礎値+補正」表記の1項目を追記する(補正0なら基礎値のみ)。例: "HP650+520 "、"AT55 "。
+	void AppendBaseWithBonus(std::wstring& line, const wchar_t* label, int baseValue, int bonusValue)
+	{
+		wchar_t buf[48];
+		if (bonusValue != 0)
+		{
+			swprintf_s(buf, L"%ls%d%+d ", label, baseValue, bonusValue);
+		}
+		else
+		{
+			swprintf_s(buf, L"%ls%d ", label, baseValue);
+		}
+		line += buf;
+	}
+
+	// bench/board上のUnitInstance向け。名前/星 + 補正込みステータス(基礎+補正) + 装備アイテムを追加する。
+	// unitは呼び出し側でBuildBoardPreview/BuildBenchPreviewにより補正を再計算済みの写しを渡す。
 	// isOnBoard: 末尾の操作案内を、右クリックで「売却」(bench)か「ベンチへ戻す」(board、GOLD増えない)
 	// かで出し分けるために必要(実機検証で判明: 両者は挙動が異なるため文言を混同してはいけない。
 	// Player::ReturnUnitToBenchは売却ではなくベンチへ戻すだけでゴールドは増えない)。
@@ -77,32 +142,61 @@ namespace
 		swprintf_s(title, L"%hs  *%d", unit.def->name.c_str(), unit.starLevel);
 		out.push_back(title);
 
-		AppendUnitDefLines(out, *unit.def);
+		const UnitDef& def = *unit.def;
 
-		// 適用中ボーナス(0でないものだけ)。トレイト・アイテムの合算値で、内訳は区別しない
-		// (bonus*系フィールド自体が合算値のため。既存UIも同様の割り切り)。
-		std::wstring bonusLine;
-		auto appendBonus = [&](const wchar_t* label, int value)
-		{
-			if (value == 0) return;
-			wchar_t buf[32];
-			swprintf_s(buf, L"%ls%+d ", label, value);
-			bonusLine += buf;
-		};
-		appendBonus(L"AT", unit.bonusAttack);
-		appendBonus(L"AP", unit.bonusMagicPower);
-		appendBonus(L"HP", unit.bonusMaxHP);
-		appendBonus(L"物防", unit.bonusPhysicalDefense);
-		appendBonus(L"魔防", unit.bonusMagicDefense);
+		// ステータスは「基礎値+補正」で表示する(補正 = トレイト/アイテム/星の合算。bonus*系フィールド
+		// 自体が合算値のため内訳は区別しない)。
+		std::wstring statLine;
+		AppendBaseWithBonus(statLine, L"HP", def.baseHP, unit.bonusMaxHP);
+		AppendBaseWithBonus(statLine, L"AT", def.baseAttack, unit.bonusAttack);
+		AppendBaseWithBonus(statLine, L"AP", def.magicPower, unit.bonusMagicPower);
+		AppendBaseWithBonus(statLine, L"物防", def.physicalDefense, unit.bonusPhysicalDefense);
+		AppendBaseWithBonus(statLine, L"魔防", def.magicDefense, unit.bonusMagicDefense);
+		out.push_back(statLine);
+
+		wchar_t speedLine[128];
 		if (unit.bonusAttackSpeed != 0.0f)
 		{
-			wchar_t buf[32];
-			swprintf_s(buf, L"AS%+.2f ", unit.bonusAttackSpeed);
-			bonusLine += buf;
+			swprintf_s(speedLine, L"攻撃速度%.2f%+.2f/s  射程%d(必殺%d)", def.attackSpeed, unit.bonusAttackSpeed, def.attackRange, def.skillRange);
 		}
-		if (!bonusLine.empty())
+		else
 		{
-			out.push_back(L"ボーナス(アイテム/トレイト込み): " + bonusLine);
+			swprintf_s(speedLine, L"攻撃速度%.2f/s  射程%d(必殺%d)", def.attackSpeed, def.attackRange, def.skillRange);
+		}
+		out.push_back(speedLine);
+
+		if (unit.bonusSkillThreshold != 0)
+		{
+			wchar_t buf[64];
+			swprintf_s(buf, L"必殺技まで %d%+d回", def.skillThreshold, unit.bonusSkillThreshold);
+			out.push_back(buf);
+		}
+
+		out.push_back(BuildSkillDescriptionText(def));
+
+		if (!def.traits.empty())
+		{
+			std::wstring traitsLine = L"トレイト: ";
+			for (size_t i = 0; i < def.traits.size(); ++i)
+			{
+				if (i > 0) traitsLine += L"/";
+				traitsLine += UITextUtil::TraitName(def.traits[i]);
+			}
+			out.push_back(traitsLine);
+		}
+
+		bool hasAnyBonus = unit.bonusMaxHP != 0 || unit.bonusAttack != 0 || unit.bonusMagicPower != 0
+			|| unit.bonusPhysicalDefense != 0 || unit.bonusMagicDefense != 0
+			|| unit.bonusAttackSpeed != 0.0f || unit.bonusSkillThreshold != 0;
+		if (hasAnyBonus)
+		{
+			out.push_back(isOnBoard
+				? L"(基礎+補正: トレイト/アイテム/星込み)"
+				: L"(基礎+補正: アイテム/星込み。トレイトは盤面配置時)");
+		}
+		else if (!isOnBoard)
+		{
+			out.push_back(L"(トレイト補正は盤面配置時に発動)");
 		}
 
 		if (!unit.items.empty())
@@ -162,16 +256,27 @@ namespace
 	{
 		std::vector<std::wstring> lines;
 		if (region.index < 0 || region.index >= (int)player.bench.size()) return lines;
-		AppendUnitInstanceLines(lines, player.bench[region.index], player, /*isOnBoard=*/false);
+		UnitInstance preview = BuildBenchPreview(player.bench[region.index]);
+		AppendUnitInstanceLines(lines, preview, player, /*isOnBoard=*/false);
 		return lines;
 	}
 
-	std::vector<std::wstring> BuildForBoardUnit(const UIHotRegion& region, const Player& player)
+	std::vector<std::wstring> BuildForBoardUnit(const UIHotRegion& region, const Player& player, const TraitDatabase& traitDatabase)
 	{
 		std::vector<std::wstring> lines;
-		const UnitInstance* unit = player.FindBoardUnitAt(region.hex);
-		if (unit == nullptr) return lines;
-		AppendUnitInstanceLines(lines, *unit, player, /*isOnBoard=*/true);
+		if (player.FindBoardUnitAt(region.hex) == nullptr) return lines;
+
+		// 盤面全体の写しで補正を再計算し(トレイトは盤面構成で決まるため1体だけでは計算できない)、
+		// 写しの中から対象マスのユニットを引く(写しはboardと同じ並び・同じpositionを持つ)。
+		std::vector<UnitInstance> previewBoard = BuildBoardPreview(player, traitDatabase);
+		for (const UnitInstance& unit : previewBoard)
+		{
+			if (unit.position == region.hex)
+			{
+				AppendUnitInstanceLines(lines, unit, player, /*isOnBoard=*/true);
+				break;
+			}
+		}
 		return lines;
 	}
 
@@ -316,7 +421,7 @@ namespace TooltipContentBuilder
 			return BuildForBenchUnit(region, player);
 
 		case UIRegionKind::BoardUnit:
-			return BuildForBoardUnit(region, player);
+			return BuildForBoardUnit(region, player, traitDatabase);
 
 		case UIRegionKind::UnclaimedItem:
 			return BuildForUnclaimedItem(region, player, itemDatabase);

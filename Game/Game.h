@@ -55,6 +55,14 @@ private:
 	/// </summary>
 	void InitializeNewRun();
 
+	/// <summary>
+	/// 戦闘結果をゲーム状態へ反映する(連勝/連敗・ゴールド・XP・勝利報酬・roundNumber/lossCount)。
+	/// CombatPlaybackの再生が終わったフレームで1回だけ呼ぶ。シミュレーション直後に反映すると、
+	/// 常時表示のHUD(連勝連敗・GOLD・ROUND等)が再生中に勝敗を先バレさせてしまうため
+	/// (playtest-quickfix-1 A)。戻り値は遷移先のフェーズ(Result/GameOver/Victory)。
+	/// </summary>
+	Phase ApplyCombatOutcome(CombatResult result);
+
 	GameState m_gameState;
 	UnitDatabase m_unitDatabase;
 	std::vector<const UnitDef*> m_currentShop;
@@ -140,11 +148,11 @@ private:
 	// フレームで即座に解除されてしまう)。ゲームパッド発の選択(false)には従来通り適用される。
 	bool m_heldBoardHexFromMouse = false;
 
-	// 戦闘フェーズの複数フレーム化用。突入時に1回だけシミュレーション+集計を行い(m_combatSimDone=true)、
-	// 以降は m_combatPlayback で時系列再生する。再生完了後に m_pendingPhaseAfterCombat へ遷移する。
+	// 戦闘フェーズの複数フレーム化用。突入時に1回だけシミュレーション+勝敗判定を行い(m_combatSimDone=true)、
+	// 以降は m_combatPlayback で時系列再生する。再生完了後に ApplyCombatOutcome() で結果を反映し、
+	// その戻り値のフェーズへ遷移する。
 	CombatPlayback m_combatPlayback;
 	bool m_combatSimDone = false;
-	Phase m_pendingPhaseAfterCombat = Phase::Result;
 
 	// Phase::Resultの表示・滞在時間管理用。Combatフェーズ解決時にその回の勝敗を控えておき、
 	// CombatPlayback再生完了でPhase::Resultへ入った瞬間にタイマーを開始する。

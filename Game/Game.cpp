@@ -71,13 +71,25 @@ bool Game::Start()
 	rimLightDir.Normalize();
 	g_renderingEngine->SetDirectionLight(2, rimLightDir, Vector3(0.45f, 0.42f, 0.38f));
 
-	g_renderingEngine->SetAmbient(Vector3(0.35f, 0.35f, 0.4f));
+	// playtest-quickfix-1 D: 「盤面が薄暗い」指摘を受けて 0.35/0.35/0.4 → 0.45/0.45/0.5 へ上げ、
+	// ユニットの影側の潰れを緩和する(陰影自体はメイン/フィル/リムの方向光で残る)。
+	g_renderingEngine->SetAmbient(Vector3(0.45f, 0.45f, 0.5f));
 
 	// 盤面以外に何も無い(背景が真っ黒に近い)シーンだと、自動露出(ミドルグレー基準)が
 	// 平均輝度の低さを補おうとして過剰に明るさを持ち上げ、ブルームが暴れてしまうため、
 	// 露出目標を下げつつブルームの発光しきい値を高くして抑える。
-	g_renderingEngine->SetSceneMiddleGray(0.03f);
+	// playtest-quickfix-1 D: 0.03 では盤面全体が薄暗かったため 0.05 へ上げる(露出前の輝度が約1.67倍)。
+	// 盤面のタイル塗り・グリッド線はライティング非依存の頂点カラーで、方向光を強めても明るくならない
+	// (むしろ平均輝度が上がって露出が下がる)ため、盤面とユニットを両方持ち上げるにはこの露出目標を使う。
+	// ACESトーンマップで1.0付近は漸近的に飽和するので白飛びはしにくく、露出後輝度はブルームしきい値(10)に
+	// 届かない見込み。F5で見て 0.04〜0.06 の範囲で微調整する出発値。
+	g_renderingEngine->SetSceneMiddleGray(0.05f);
 	g_renderingEngine->SetBloomThreshold(10.0f);
+
+	// playtest-quickfix-1 C: 準備/結果フェーズ(board駆動)の敵ユニットは手前(プレイヤー側 = -Z)を向かせる。
+	// 既定(+Z = 敵陣方向)のままだと画面奥を向いてしまう。プレイヤー側は既定のまま(敵の方 = 奥を向く)。
+	// 戦闘再生中の向きは CombatPlayback の facingDir で別途決まるため、この設定の影響を受けない。
+	m_enemyModelDisplay.SetIdleFacingDir(Vector3(0.0f, 0.0f, -1.0f));
 
 	InitializeNewRun();
 
@@ -112,7 +124,6 @@ void Game::InitializeNewRun()
 	m_hasPendingSellTarget = false;
 	m_sellConfirmTimer = 0.0f;
 	m_combatSimDone = false;
-	m_pendingPhaseAfterCombat = Phase::Result;
 	m_lastCombatResult = CombatResult::Win;
 	m_resultPhaseTimer = 0.0f;
 
@@ -718,7 +729,7 @@ void Game::Update()
 			}
 		}
 
-		// Bボタン(またはマウスで[Next Round]ボタンをクリック)で次のフェーズに進む。
+		// Bボタン(またはマウスで画面右下の[戦闘開始]ボタンをクリック)で次のフェーズに進む。
 		// この操作はフォーカス/カーソルの状態に依存しないため、パッド/マウスの発火を単純にORするだけでよい。
 		UIHotRegion nextPhaseClick;
 		bool mouseClickedNextPhase = m_uiInteraction.GetLeftClicked(nextPhaseClick) && nextPhaseClick.kind == UIRegionKind::NextPhaseButton;
@@ -1048,73 +1059,11 @@ void Game::Update()
 			OutputDebugString(L"You lose this combat!\n");
 		}
 
-		// 経済(基本収入+利子+連勝/連敗ボーナス)をプレイヤーのゴールドに反映する。
-		m_economySystem.GrantRoundIncome(player, result, player.name);
-
-		// ラウンド経過による経験値をプレイヤーに付与する(勝敗に関わらず、何もしなくても自然にレベルが上がっていく)。
-		m_levelSystem.GrantRoundXP(player);
-
 		OutputDebugString(L"=== Combat End ===\n");
 
-		// 勝敗によるラウンド進行の確定と、再生完了後に遷移するフェーズの決定。
-		// 「画面上何も見えないまま一瞬で終わる」のを避けるため、遷移自体は再生後まで遅延させる。
-		Phase nextPhase = Phase::Result;
-		if (result == CombatResult::Win)
-		{
-			wchar_t buf[128];
-			swprintf_s(buf, L"=== Round %d Clear! ===\n", m_gameState.roundNumber);
-			OutputDebugString(buf);
-
-			// ラウンド勝利報酬: 未装備の素材アイテムを1つ入手する(準備フェーズでユニットに装備できる)。
-			const ItemDef* reward = PickRandomComponent(m_itemDatabase);
-			if (reward != nullptr)
-			{
-				player.unclaimedItems.push_back(reward);
-
-				wchar_t rewardLog[192];
-				swprintf_s(rewardLog, L"[Reward] Obtained item: %hs (unclaimed total=%d)\n",
-					reward->name.c_str(), (int)player.unclaimedItems.size());
-				OutputDebugString(rewardLog);
-
-				wchar_t fb[128];
-				swprintf_s(fb, L"アイテム入手: %hs", reward->name.c_str());
-				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
-			}
-
-			m_gameState.lossCount = 0;
-			m_gameState.roundNumber++;
-
-			if (m_gameState.roundNumber > GameState::kTotalRounds)
-			{
-				OutputDebugString(L"=== ALL ROUNDS CLEARED! YOU WIN! ===\n");
-				nextPhase = Phase::Victory;
-			}
-			else
-			{
-				nextPhase = Phase::Result;
-			}
-		}
-		else
-		{
-			m_gameState.lossCount++;
-
-			wchar_t buf[128];
-			swprintf_s(buf, L"=== Defeat! (%d/%d losses against this enemy) ===\n",
-				m_gameState.lossCount, GameState::kMaxLossesPerEnemy);
-			OutputDebugString(buf);
-
-			if (m_gameState.lossCount >= GameState::kMaxLossesPerEnemy)
-			{
-				OutputDebugString(L"=== GAME OVER ===\n");
-				nextPhase = Phase::GameOver;
-			}
-			else
-			{
-				nextPhase = Phase::Result;
-			}
-		}
-
-		m_pendingPhaseAfterCombat = nextPhase;
+		// [playtest-quickfix-1 A] 連勝/連敗・ゴールド・XP・勝利報酬・roundNumber/lossCount の反映は、
+		// ここ(シミュレーション直後)では行わず、再生完了時に ApplyCombatOutcome() でまとめて行う。
+		// 常時表示のHUDが m_gameState を毎フレーム読むため、ここで反映すると再生中に勝敗が先バレする。
 
 		// 戦闘の時系列再生を開始する(enemy盤面は再生側が必要な値をコピーする)。
 		m_combatPlayback.Begin(player.board, player.name, enemy.board, enemy.name, m_combatEvents);
@@ -1127,9 +1076,10 @@ void Game::Update()
 
 		if (m_combatPlayback.IsFinished())
 		{
-			// 再生完了。盤面ユニットを配置位置へ戻し、退避しておいた遷移先へ進む。
+			// 再生完了。盤面ユニットを配置位置へ戻し、ここで初めて戦闘結果(連勝/連敗・ゴールド等)を
+			// ゲーム状態へ反映して、その結果決まる遷移先へ進む(playtest-quickfix-1 A: HUDの先バレ防止)。
 			m_gameState.players[0].ResetBoardPositions();
-			m_gameState.currentPhase = m_pendingPhaseAfterCombat;
+			m_gameState.currentPhase = ApplyCombatOutcome(m_lastCombatResult);
 			m_combatSimDone = false;
 
 			if (m_gameState.currentPhase == Phase::Result)
@@ -1255,6 +1205,81 @@ void Game::Update()
 			m_tooltipVisible = false;
 		}
 	}
+}
+
+/// <summary>
+/// 戦闘結果をゲーム状態へ反映し、遷移先のフェーズを返す。CombatPlaybackの再生完了フレームで1回だけ呼ぶ
+/// (playtest-quickfix-1 A。以前はシミュレーション直後に反映しており、再生中にHUDが勝敗を先バレさせていた)。
+/// 利子計算はplayer.goldを参照するが、戦闘再生中にゴールドを変える操作は無いため反映を遅らせても結果は同じ。
+/// </summary>
+Phase Game::ApplyCombatOutcome(CombatResult result)
+{
+	Player& player = m_gameState.players[0];
+
+	// 経済(基本収入+利子+連勝/連敗ボーナス)をプレイヤーのゴールドに反映する。
+	m_economySystem.GrantRoundIncome(player, result, player.name);
+
+	// ラウンド経過による経験値をプレイヤーに付与する(勝敗に関わらず、何もしなくても自然にレベルが上がっていく)。
+	m_levelSystem.GrantRoundXP(player);
+
+	// 勝敗によるラウンド進行の確定と、遷移するフェーズの決定。
+	Phase nextPhase = Phase::Result;
+	if (result == CombatResult::Win)
+	{
+		wchar_t buf[128];
+		swprintf_s(buf, L"=== Round %d Clear! ===\n", m_gameState.roundNumber);
+		OutputDebugString(buf);
+
+		// ラウンド勝利報酬: 未装備の素材アイテムを1つ入手する(準備フェーズでユニットに装備できる)。
+		const ItemDef* reward = PickRandomComponent(m_itemDatabase);
+		if (reward != nullptr)
+		{
+			player.unclaimedItems.push_back(reward);
+
+			wchar_t rewardLog[192];
+			swprintf_s(rewardLog, L"[Reward] Obtained item: %hs (unclaimed total=%d)\n",
+				reward->name.c_str(), (int)player.unclaimedItems.size());
+			OutputDebugString(rewardLog);
+
+			wchar_t fb[128];
+			swprintf_s(fb, L"アイテム入手: %hs", reward->name.c_str());
+			m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
+		}
+
+		m_gameState.lossCount = 0;
+		m_gameState.roundNumber++;
+
+		if (m_gameState.roundNumber > GameState::kTotalRounds)
+		{
+			OutputDebugString(L"=== ALL ROUNDS CLEARED! YOU WIN! ===\n");
+			nextPhase = Phase::Victory;
+		}
+		else
+		{
+			nextPhase = Phase::Result;
+		}
+	}
+	else
+	{
+		m_gameState.lossCount++;
+
+		wchar_t buf[128];
+		swprintf_s(buf, L"=== Defeat! (%d/%d losses against this enemy) ===\n",
+			m_gameState.lossCount, GameState::kMaxLossesPerEnemy);
+		OutputDebugString(buf);
+
+		if (m_gameState.lossCount >= GameState::kMaxLossesPerEnemy)
+		{
+			OutputDebugString(L"=== GAME OVER ===\n");
+			nextPhase = Phase::GameOver;
+		}
+		else
+		{
+			nextPhase = Phase::Result;
+		}
+	}
+
+	return nextPhase;
 }
 
 /// <summary>
