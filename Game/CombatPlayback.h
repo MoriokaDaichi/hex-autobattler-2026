@@ -88,8 +88,44 @@ public:
 	/// <summary>再生速度(Begin で決定、combat秒/実秒)。アニメ速度合わせに使う。</summary>
 	float GetPlaybackSpeed() const { return m_speed; }
 
+	/// <summary>Begin() のたびに +1 される通し番号。表示側が戦闘ごとの補間状態をリセットする判定に使う。</summary>
+	unsigned int GetBeginSerial() const { return m_beginSerial; }
+
+	/// <summary>
+	/// combat-number-overlap: ダメージ/回復のポップアップ数字の種類。表示側が色・大きさを決める。
+	/// </summary>
+	enum class PopupKind
+	{
+		Physical, // 物理の通常攻撃。
+		Magic,    // 魔法の通常攻撃・必殺技の巻き込み(SplashDamage)。
+		Skill,    // 必殺技の直撃(大きく目立たせる)。
+		Burn,     // 火傷の継続ダメージ(小さめ)。
+		Heal,     // 回復("+N")。
+	};
+
+	/// <summary>
+	/// ユニット付近に一定時間浮かぶ数字1つ分。寿命・合算判定は実時間(秒)で数える
+	/// (再生速度が最大5倍まで上がっても読める長さを保つため)。
+	/// </summary>
+	struct DamagePopup
+	{
+		size_t viewIndex = 0;   // m_views 上の添字。
+		int amount = 0;
+		PopupKind kind = PopupKind::Physical;
+		float age = 0.0f;       // 生成からの経過実時間(秒)。
+		float sinceLastHit = 0.0f; // 最後に生成/合算されてからの経過実時間(秒)。とどめ判定用。
+		bool lethal = false;    // このダメージで撃破した(とどめ。強調表示する)。
+	};
+
+	const std::vector<DamagePopup>& GetPopups() const { return m_popups; }
+
+	/// <summary>種類ごとのポップアップ寿命(実秒)。表示側のフェード計算にも使う。</summary>
+	static float GetPopupLifetime(const DamagePopup& p);
+
 private:
 	void ApplyEvent(const CombatEvent& ev);
+	void SpawnPopup(const UnitView* v, int amount, PopupKind kind);
+	void UpdatePopups(float deltaTime);
 	UnitView* ResolveActor(const CombatEvent& ev);
 	UnitView* ResolveTarget(const CombatEvent& ev);
 
@@ -110,4 +146,7 @@ private:
 	float m_tailTimer = 0.0f;
 	bool m_active = false;
 	bool m_begun = false;
+	unsigned int m_beginSerial = 0;
+
+	std::vector<DamagePopup> m_popups; // 生成順(古い→新しい)。
 };
