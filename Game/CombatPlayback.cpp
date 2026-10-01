@@ -2,6 +2,7 @@
 #include "CombatPlayback.h"
 #include "UnitInstance.h"
 #include "HexGridRenderer.h"
+#include <algorithm>
 
 const float CombatPlayback::kTargetPlaybackSeconds = 6.0f;
 const float CombatPlayback::kMinSpeed = 1.0f;
@@ -14,6 +15,18 @@ namespace
 	const float kMoveDurMin = 0.12f;        // 最速でも見える下限。
 	const float kMoveDurMax = 0.9f;         // 次アクション(≒1/attackSpeed≒0.7〜1.4s)前に到着し切るための上限。
 	const float kMoveDurFallback = 0.35f;   // そのユニットの最後の Move で次イベントが無い場合。
+
+	// --- combat-number-overlap: ダメージ/回復ポップアップ(すべて実時間・秒) ---
+	const float kPopupLifetime = 0.9f;       // 通常の数字の寿命。
+	const float kSkillPopupLifetime = 1.2f;  // 必殺技直撃・とどめは長めに残す。
+	// 同じユニットへの同種ダメージがこの時間内に続いたら、新しい数字を出さず直前の数字へ合算する
+	// (再生速度最大5倍時に1体が複数から殴られると実時間で十数回/秒になるため)。
+	const float kPopupMergeWindow = 0.25f;
+	const size_t kMaxPopupsPerUnit = 3;      // 1ユニットに同時に出す上限(超えたら古いものから消す)。
+	const size_t kMaxPopupsTotal = 48;       // 画面全体の上限。
+	// Death を受けた時、最後の生成/合算からこの時間以内の数字を「とどめ」とみなして強調する
+	// (Death は致死ダメージと同じ time=同フレームで反映されるので実質0)。
+	const float kLethalMarkMaxAge = 0.05f;
 
 	float Clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -78,6 +91,8 @@ void CombatPlayback::Begin(
 	m_nextIndex = 0;
 	m_clock = 0.0f;
 	m_tailTimer = kTailSeconds;
+	m_popups.clear();
+	++m_beginSerial;
 
 	// 総尺が kTargetPlaybackSeconds に収まるよう再生速度を決める(下限1.0倍=スローにはしない)。
 	float total = m_events.empty() ? 0.0f : m_events.back().time;
@@ -101,6 +116,9 @@ void CombatPlayback::Update(float deltaTime)
 	if (!m_active) return;
 
 	m_clock += deltaTime * m_speed;
+
+	// 既存ポップアップの加齢・寿命切れ削除は、このフレームのイベント反映(新規生成)より先に行う。
+	UpdatePopups(deltaTime);
 
 	// クロックが到達したイベントをまとめて反映する。while条件が time <= clock なので、
 	// 同じ time 値のイベントは必ず同じフレームでまとめて処理される。
@@ -170,6 +188,60 @@ CombatPlayback::UnitView* CombatPlayback::ResolveTarget(const CombatEvent& ev)
 	return &m_views[idx];
 }
 
+float CombatPlayback::GetPopupLifetime(const DamagePopup& p)
+{
+	return (p.kind == PopupKind::Skill || p.lethal) ? kSkillPopupLifetime : kPopupLifetime;
+}
+
+void CombatPlayback::UpdatePopups(float deltaTime)
+{
+	for (auto& p : m_popups) { p.age += deltaTime; p.sinceLastHit += deltaTime; }
+	m_popups.erase(
+		std::remove_if(m_popups.begin(), m_popups.end(),
+			[](const DamagePopup& p) { return p.age >= GetPopupLifetime(p); }),
+		m_popups.end());
+}
+
+void CombatPlayback::SpawnPopup(const UnitView* v, int amount, PopupKind kind)
+{
+	if (v == nullptr || amount <= 0 || m_views.empty()) return;
+	size_t viewIndex = (size_t)(v - &m_views[0]);
+
+	// 必殺技以外は、直前に出た同種の数字へ合算する(短時間の連続ダメージをまとめる)。
+	if (kind != PopupKind::Skill)
+	{
+		for (auto it = m_popups.rbegin(); it != m_popups.rend(); ++it)
+		{
+			if (it->viewIndex != viewIndex) continue;
+			if (it->kind == kind && !it->lethal && it->age < kPopupMergeWindow)
+			{
+				it->amount += amount;
+				it->sinceLastHit = 0.0f;
+				return;
+			}
+			break; // 同ユニットの最新が別種なら合算しない(並び順の見た目を保つ)。
+		}
+	}
+
+	// 同ユニット分が上限なら最も古いものを消す。
+	size_t count = 0;
+	for (const auto& p : m_popups) if (p.viewIndex == viewIndex) ++count;
+	if (count >= kMaxPopupsPerUnit)
+	{
+		for (auto it = m_popups.begin(); it != m_popups.end(); ++it)
+		{
+			if (it->viewIndex == viewIndex) { m_popups.erase(it); break; }
+		}
+	}
+	if (m_popups.size() >= kMaxPopupsTotal) m_popups.erase(m_popups.begin());
+
+	DamagePopup p;
+	p.viewIndex = viewIndex;
+	p.amount = amount;
+	p.kind = kind;
+	m_popups.push_back(p);
+}
+
 void CombatPlayback::ApplyEvent(const CombatEvent& ev)
 {
 	switch (ev.type)
@@ -181,6 +253,14 @@ void CombatPlayback::ApplyEvent(const CombatEvent& ev)
 		if (UnitView* v = ResolveTarget(ev))
 		{
 			v->displayHP = ev.afterValue < 0 ? 0 : ev.afterValue;
+
+			// combat-number-overlap: ダメージ数字。amount はシールド吸収分を含む総ダメージ
+			// (ShieldAbsorb は別途数字を出さない=二重表示しない)。
+			PopupKind kind = PopupKind::Physical;
+			if (ev.type == CombatEventType::SkillAttack) kind = PopupKind::Skill;
+			else if (ev.type == CombatEventType::Burn) kind = PopupKind::Burn;
+			else if (ev.attackType == AttackType::Magic) kind = PopupKind::Magic;
+			SpawnPopup(v, ev.amount, kind);
 		}
 		// 攻撃モーションは通常攻撃・必殺技の直撃イベントでのみトリガーする
 		// (SplashDamage は同じ必殺技の巻き込み分なので二重発火させない。Burn は継続ダメージ)。
@@ -210,6 +290,7 @@ void CombatPlayback::ApplyEvent(const CombatEvent& ev)
 		if (UnitView* v = ResolveActor(ev))
 		{
 			v->displayHP = ev.afterValue < 0 ? 0 : ev.afterValue;
+			SpawnPopup(v, ev.amount, PopupKind::Heal);
 		}
 		break;
 
@@ -235,6 +316,14 @@ void CombatPlayback::ApplyEvent(const CombatEvent& ev)
 			v->displayHP = 0;
 			v->displayShield = 0;
 			v->deathAnimTriggered = true;
+			// combat-number-overlap: 同フレームに出たこのユニットへの最新ダメージ数字を「とどめ」として強調する。
+			size_t viewIndex = (size_t)(v - &m_views[0]);
+			for (auto it = m_popups.rbegin(); it != m_popups.rend(); ++it)
+			{
+				if (it->viewIndex != viewIndex) continue;
+				if (it->kind != PopupKind::Heal && it->sinceLastHit <= kLethalMarkMaxAge) it->lethal = true;
+				break;
+			}
 			// 同一フレーム内でMove直後にDeathが来た場合(moveStartClock==m_clockでまだ補間ループを
 			// 1回も通っていない)、worldPosが移動元のまま取り残されてしまう。シミュレーション上は
 			// MoveTowardsの時点で既にattacker.positionが移動先へ更新済みなので、moveToPosへ

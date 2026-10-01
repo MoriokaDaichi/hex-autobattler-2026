@@ -78,6 +78,25 @@ private:
 		bool alive = true;
 	};
 
+	/// <summary>ダメージ/回復ポップアップ数字1つ分の描画データ(combat-number-overlap)。</summary>
+	struct PopupView
+	{
+		Vector2 topLeft;          // テキスト左上のUI空間座標(中央揃え済み)。
+		std::wstring text;
+		Vector4 color;            // alpha はフェード込み。
+		float scale = 0.5f;
+	};
+
+	/// <summary>
+	/// combat-number-overlap: 画面上で重なるHPブロック(名前+HPバー+数値+ゲージ)を、手前(画面下側)の
+	/// ものを優先して上へずらし積む。目標オフセットを計算し、m_barOffsetY を滑らかに追従させてから
+	/// m_bars の uiPos.y に加算する。m_bars は DrawCombat 内で views と同じ添字順に詰めてある前提。
+	/// </summary>
+	void DeclutterBars(float deltaTime);
+
+	/// <summary>playback のポップアップ列から m_popupViews を組み立てる(同ユニット分は縦に積む)。</summary>
+	void BuildPopupViews(const CombatPlayback& playback);
+
 	/// <summary>ベンチ1体分の表示テキスト。</summary>
 	struct BenchView
 	{
@@ -88,6 +107,9 @@ private:
 	Font m_font;
 	Mode m_mode = Mode::None;
 	std::vector<BarView> m_bars;
+	std::vector<float> m_barOffsetY;      // HPブロックの重なり回避用の表示中オフセット(m_barsと同じ添字)。
+	unsigned int m_playbackSerial = 0;    // 前フレームの CombatPlayback::GetBeginSerial()(戦闘が変わったらオフセットをリセット)。
+	std::vector<PopupView> m_popupViews;
 	std::vector<BenchView> m_bench;
 	UIRectRenderer* m_rectRenderer = nullptr; // Draw*()で渡されたものをOnRender2D用に保持する。
 	bool m_benchFocused = false;
