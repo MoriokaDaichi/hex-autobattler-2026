@@ -1246,6 +1246,26 @@ Phase Game::ApplyCombatOutcome(CombatResult result)
 			m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
 		}
 
+		// 連勝ボーナス: 5連勝以上では、通常の勝利報酬に加えて素材アイテムをもう1つ入手する
+		// (winStreakは上のGrantRoundIncomeで今回の勝利分まで更新済み)。
+		if (EconomySystem::HasWinStreakItemBonus(player.winStreak))
+		{
+			const ItemDef* streakReward = PickRandomComponent(m_itemDatabase);
+			if (streakReward != nullptr)
+			{
+				player.unclaimedItems.push_back(streakReward);
+
+				wchar_t rewardLog[192];
+				swprintf_s(rewardLog, L"[Reward] Win streak bonus item: %hs (streak=%d, unclaimed total=%d)\n",
+					streakReward->name.c_str(), player.winStreak, (int)player.unclaimedItems.size());
+				OutputDebugString(rewardLog);
+
+				wchar_t fb[128];
+				swprintf_s(fb, L"連勝ボーナス: %hs", streakReward->name.c_str());
+				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
+			}
+		}
+
 		m_gameState.lossCount = 0;
 		m_gameState.roundNumber++;
 

@@ -12,6 +12,7 @@
 #include "UnitInstance.h"
 #include "Player.h"
 #include "GameState.h"
+#include "EconomySystem.h"
 #include "UITextUtil.h"
 
 namespace
@@ -499,17 +500,28 @@ namespace TooltipContentBuilder
 
 		case UIRegionKind::HudStreakDisplay:
 		{
+			// 次の戦闘で勝った(負けた)場合のボーナス額を、EconomySystemと同じ関数で計算して表示する。
 			if (player.winStreak > 0)
 			{
-				wchar_t buf[48];
-				swprintf_s(buf, L"%d連勝中(勝利報酬のゴールドが増える)", player.winStreak);
-				return { buf };
+				const int nextWinStreak = player.winStreak + 1;
+				wchar_t buf1[48];
+				swprintf_s(buf1, L"%d連勝中", player.winStreak);
+				wchar_t buf2[64];
+				swprintf_s(buf2, L"次の勝利で連勝ボーナス +%dG", EconomySystem::GetWinStreakBonus(nextWinStreak));
+				std::vector<std::wstring> lines = { buf1, buf2 };
+				if (EconomySystem::HasWinStreakItemBonus(nextWinStreak))
+				{
+					lines.push_back(L"次の勝利で素材アイテム +1");
+				}
+				return lines;
 			}
 			if (player.lossStreak > 0)
 			{
-				wchar_t buf[48];
-				swprintf_s(buf, L"%d連敗中", player.lossStreak);
-				return { buf };
+				wchar_t buf1[48];
+				swprintf_s(buf1, L"%d連敗中", player.lossStreak);
+				wchar_t buf2[64];
+				swprintf_s(buf2, L"次の敗北で連敗ボーナス +%dG", EconomySystem::GetLossStreakBonus(player.lossStreak + 1));
+				return { buf1, buf2 };
 			}
 			return { L"連勝連敗なし" };
 		}
