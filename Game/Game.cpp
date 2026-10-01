@@ -481,6 +481,23 @@ void Game::Update()
 			}
 		}
 
+		// --- マウスドラッグ&ドロップ(drag-and-drop) ---
+		// 既存の左クリック処理(押下で発火)より前に呼び、押下時点の掴み状態でドラッグ可否を判定する。
+		// ドラッグが終了(ドロップ確定/取り消し)したフレームでは、押下時に既存クリックが掴んだ状態を解除する。
+		bool dragEndedThisFrame = false;
+		{
+			bool holdingBeforePress = (m_heldUnclaimedIndex >= 0) || m_mouseHeldBenchIndex >= 0 || m_heldBoardHexValid;
+			dragEndedThisFrame = m_dragDrop.Update(m_hotRegions, holdingBeforePress, prepPlayer, m_itemSystem, m_itemDatabase, m_shopUI);
+			if (dragEndedThisFrame)
+			{
+				m_heldUnclaimedIndex = -1;
+				m_mouseHeldBenchIndex = -1;
+				m_heldBoardHexValid = false;
+				m_heldBoardHexFromMouse = false;
+				m_hasPendingSellTarget = false;
+			}
+		}
+
 		// --- マウス左クリック(A/Xボタン相当。専用の分岐で解決する) ---
 		// ゲームパッドのA/Xは「現在のフォーカス+一覧カーソル/ヘックスカーソル」という暗黙の対象を
 		// 前提にしているが、マウスのクリックは対象(UIHotRegion)が最初から明示的なため、focusを
@@ -683,7 +700,8 @@ void Game::Update()
 			bool holdingSomething = (m_heldUnclaimedIndex >= 0) || m_mouseHeldBenchIndex >= 0 || m_heldBoardHexValid;
 
 			UIHotRegion rightClicked;
-			if (m_uiInteraction.GetRightClicked(rightClicked))
+			// ドラッグを右クリックで取り消したフレームは、その右クリックを売却確認等に使わない。
+			if (!dragEndedThisFrame && m_uiInteraction.GetRightClicked(rightClicked))
 			{
 				if (holdingSomething)
 				{
@@ -759,6 +777,7 @@ void Game::Update()
 			m_heldBoardHexFromMouse = false;
 			m_mouseHeldBenchIndex = -1;
 			m_hasPendingSellTarget = false;
+			m_dragDrop.Cancel(); // ドラッグ中のものも戦闘に持ち越さない。
 			m_gameState.currentPhase = Phase::Combat;
 		}
 
@@ -1218,6 +1237,12 @@ void Game::Update()
 			m_hoverTimer = 0.0f;
 			m_tooltipVisible = false;
 		}
+
+		// ドラッグ中はツールチップを出さない(ドロップ候補のハイライト・名札と重なるため。drag-and-drop)。
+		if (m_dragDrop.IsDragging())
+		{
+			m_tooltipVisible = false;
+		}
 	}
 }
 
@@ -1525,6 +1550,9 @@ void Game::Render(RenderContext& rc)
 
 		// 全トレイトの発動状況(画面左側、BENCH一覧の下)。
 		m_traitPanelUI.Draw(rc, player.board, m_traitDatabase, m_traitSystem, m_uiRectRenderer);
+
+		// ドラッグ中のドロップ候補ハイライトと名札(他の準備フェーズUIより手前、ツールチップより奥)。
+		m_dragDrop.Draw(rc, m_hotRegions, player, m_uiRectRenderer);
 	}
 	// 戦闘の再生中は、各ユニットの頭上にHPバーを表示する。
 	else if (m_gameState.currentPhase == Phase::Combat && m_combatSimDone)

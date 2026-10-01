@@ -203,6 +203,55 @@ struct Player
 	}
 
 	/// <summary>
+	/// ベンチの benchIndex 番目のユニットと、盤面 boardPos のユニットを入れ替える(drag-and-drop)。
+	/// ベンチのユニットは boardPos へ配置され、盤面にいたユニットは同じベンチ位置へ入る。
+	/// 盤面のユニット数は変わらないため GetMaxBoardSize チェックは行わない。成功で true。
+	/// </summary>
+	bool SwapBenchWithBoard(int benchIndex, const HexCoord& boardPos)
+	{
+		if (benchIndex < 0 || benchIndex >= (int)bench.size())
+		{
+			return false; // ベンチの範囲外
+		}
+
+		for (auto& unit : board)
+		{
+			if (unit.position == boardPos)
+			{
+				UnitInstance fromBench = bench[benchIndex];
+				fromBench.position = boardPos;
+				fromBench.homePosition = boardPos; // 毎ラウンド戦闘開始前に戻る先として記録しておく。
+
+				bench[benchIndex] = unit; // 盤面にいた方はベンチの同じ位置へ(ベンチでは位置を使わない)。
+				unit = fromBench;
+
+				while (TryMergeUnits()) {} // PlaceUnitOnBoard と同じ防御的呼び出し。
+				return true;
+			}
+		}
+		return false; // boardPos にユニットが居ない(空きマスならPlaceUnitOnBoardを使う)。
+	}
+
+	/// <summary>
+	/// 盤面上の a マスと b マスのユニットの位置を入れ替える(drag-and-drop)。
+	/// 両方にユニットが居ること。成功で true。
+	/// </summary>
+	bool SwapBoardUnits(const HexCoord& a, const HexCoord& b)
+	{
+		if (a == b) return false;
+
+		UnitInstance* unitA = FindBoardUnitAt(a);
+		UnitInstance* unitB = FindBoardUnitAt(b);
+		if (unitA == nullptr || unitB == nullptr) return false;
+
+		unitA->position = b;
+		unitA->homePosition = b;
+		unitB->position = a;
+		unitB->homePosition = a;
+		return true;
+	}
+
+	/// <summary>
 	/// ユニット1体分の売却額を返す。★2は素材3体分、★3は9体分の価値として扱う
 	/// (3体合成でスターアップする仕組みと整合させている)。
 	/// </summary>

@@ -33,6 +33,7 @@
 #include "UIInteractionSystem.h"
 #include "TooltipContentBuilder.h"
 #include "TooltipUIRenderer.h"
+#include "DragDropController.h"
 
 class Game : public IGameObject
 {
@@ -147,6 +148,11 @@ private:
 	// 解除する」既存の掃除ロジックをマウス発の選択には適用しない(適用すると拾った直後の
 	// フレームで即座に解除されてしまう)。ゲームパッド発の選択(false)には従来通り適用される。
 	bool m_heldBoardHexFromMouse = false;
+
+	// 準備フェーズのマウスドラッグ&ドロップ(drag-and-drop)。既存のクリック操作に追加する形で、
+	// 押下→閾値以上移動→離した場所で配置/移動/入れ替え/ベンチ戻し/売却/装備を確定する。
+	// ドラッグ終了フレームでは上記の掴み状態(m_mouseHeldBenchIndex等)を解除する(docs/tasks/drag-and-drop/plan.md)。
+	DragDropController m_dragDrop;
 
 	// 戦闘フェーズの複数フレーム化用。突入時に1回だけシミュレーション+勝敗判定を行い(m_combatSimDone=true)、
 	// 以降は m_combatPlayback で時系列再生する。再生完了後に ApplyCombatOutcome() で結果を反映し、

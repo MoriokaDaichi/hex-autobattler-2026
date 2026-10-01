@@ -232,6 +232,7 @@
     <ClCompile Include="UIRectRenderer.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="CursorSelectionSystem.cpp" />
+    <ClCompile Include="DragDropController.cpp" />
     <ClCompile Include="UIInteractionSystem.cpp" />
     <ClCompile Include="UITextUtil.cpp" />
     <ClCompile Include="TooltipContentBuilder.cpp" />
@@ -268,6 +269,7 @@
     <ClInclude Include="UIRectRenderer.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="CursorSelectionSystem.h" />
+    <ClInclude Include="DragDropController.h" />
     <ClInclude Include="UIInteractionSystem.h" />
     <ClInclude Include="UIHotRegion.h" />
     <ClInclude Include="UITextUtil.h" />
