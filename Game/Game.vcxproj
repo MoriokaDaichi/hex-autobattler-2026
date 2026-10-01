@@ -230,6 +230,7 @@
     <ClCompile Include="ItemInventoryUIRenderer.cpp" />
     <ClCompile Include="TraitPanelUIRenderer.cpp" />
     <ClCompile Include="UIRectRenderer.cpp" />
+    <ClCompile Include="StarUpEffectRenderer.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="CursorSelectionSystem.cpp" />
     <ClCompile Include="DragDropController.cpp" />
@@ -269,6 +270,7 @@
     <ClInclude Include="ItemInventoryUIRenderer.h" />
     <ClInclude Include="TraitPanelUIRenderer.h" />
     <ClInclude Include="UIRectRenderer.h" />
+    <ClInclude Include="StarUpEffectRenderer.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="CursorSelectionSystem.h" />
     <ClInclude Include="DragDropController.h" />

@@ -57,6 +57,9 @@ bool Game::Start()
 	// 投影計算の根拠: docs/tasks/readability-board-economy/plan.md §F。
 	g_camera3D->SetPosition({ 10.0f, 811.0f, -518.0f });
 	g_camera3D->SetTarget({ 10.0f, 0.0f, 50.0f });
+	// ★3合成演出のカメラ揺れ(star-up-effect)は、この位置/注視点を基準にずらして戻す。
+	m_cameraBasePosition = g_camera3D->GetPosition();
+	m_cameraBaseTarget = g_camera3D->GetTarget();
 
 	// カメラとほぼ同じ側(斜め上・やや背後)からユニット正面に光が回り込む方向に
 	// ディレクションライトを設定し、シルエット化を避けつつ陰影で立体感を出す。
@@ -165,7 +168,7 @@ void Game::Update()
 		}
 		else if (showBattlefieldModels)
 		{
-			m_unitModelDisplay.Update(m_gameState.players[0].board);
+			m_unitModelDisplay.Update(m_gameState.players[0].board, &m_starUpEffect); // ★アップ演出のポップを反映。
 
 			if (m_enemyPreviewRound != m_gameState.roundNumber
 				&& m_gameState.roundNumber >= 1
@@ -189,17 +192,53 @@ void Game::Update()
 	// ショップUIの操作フィードバック(数秒で自動的に消える)の残り時間を進める。
 	m_shopUI.UpdateFeedbackTimer(g_gameTime->GetFrameDeltaTime());
 
-	// 売却・合成で装備がアイテム欄へ戻った/引き継がれた通知(前フレームの操作でPlayerが積んだもの)を表示する(item-carryover)。
-	if (!m_gameState.players.empty() && !m_gameState.players[0].itemNotices.empty())
+	// ★アップ演出(star-up-effect): 前フレームの操作で起きた合成を演出として開始する。演出は準備フェーズ中だけ
+	// 再生し(入力・進行には関与しない)、それ以外のフェーズへ移ったら即座に破棄する。
+	std::wstring mergeNotice = ConsumeMergeEvents();
+	if (m_gameState.currentPhase == Phase::Preparation)
 	{
-		std::wstring notice;
-		for (const auto& text : m_gameState.players[0].itemNotices)
+		m_starUpEffect.Update(g_gameTime->GetFrameDeltaTime());
+	}
+	else
+	{
+		m_starUpEffect.Clear();
+	}
+
+	// ★3のカメラ揺れ。揺れている間と、揺れ終わった最初のフレーム(基準へ戻す)だけカメラを書き換える。
+	{
+		Vector3 shake = m_starUpEffect.GetCameraShakeOffset();
+		bool shaking = (shake.x != 0.0f || shake.y != 0.0f || shake.z != 0.0f);
+		if (shaking || m_cameraShakeApplied)
 		{
-			if (!notice.empty()) notice += L" / ";
-			notice += text;
+			Vector3 pos = m_cameraBasePosition;
+			Vector3 target = m_cameraBaseTarget;
+			pos.Add(shake);
+			target.Add(shake); // 位置と注視点を同じだけずらし、向きは変えない(平行移動の揺れ)。
+			g_camera3D->SetPosition(pos);
+			g_camera3D->SetTarget(target);
 		}
-		m_gameState.players[0].itemNotices.clear();
-		m_shopUI.PushFeedback(notice.c_str(), ShopUIRenderer::FeedbackLevel::Info);
+		m_cameraShakeApplied = shaking;
+	}
+
+	// 売却・合成で装備がアイテム欄へ戻った/引き継がれた通知(前フレームの操作でPlayerが積んだもの)を表示する(item-carryover)。
+	// PushFeedbackは上書き式のため、合成の通知(star-up-effect)と連結して1回で流す。
+	if (!mergeNotice.empty()
+		|| (!m_gameState.players.empty() && !m_gameState.players[0].itemNotices.empty()))
+	{
+		std::wstring notice = mergeNotice;
+		if (!m_gameState.players.empty())
+		{
+			for (const auto& text : m_gameState.players[0].itemNotices)
+			{
+				if (!notice.empty()) notice += L" / ";
+				notice += text;
+			}
+			m_gameState.players[0].itemNotices.clear();
+		}
+		ShopUIRenderer::FeedbackLevel level = mergeNotice.empty()
+			? ShopUIRenderer::FeedbackLevel::Info
+			: ShopUIRenderer::FeedbackLevel::Success;
+		m_shopUI.PushFeedback(notice.c_str(), level);
 	}
 
 	// マウス操作基盤: 今フレームのクリック可能矩形一覧を、フェーズごとに毎回作り直す
@@ -1012,6 +1051,96 @@ Phase Game::ApplyCombatOutcome(CombatResult result)
 	return nextPhase;
 }
 
+std::wstring Game::ConsumeMergeEvents()
+{
+	if (m_gameState.players.empty()) return std::wstring();
+
+	Player& player = m_gameState.players[0];
+	if (player.mergeEvents.empty()) return std::wstring();
+
+	std::wstring notice;
+	const auto& events = player.mergeEvents;
+	for (size_t i = 0; i < events.size(); ++i)
+	{
+		const Player::MergeEvent& ev = events[i];
+		if (ev.def == nullptr) continue;
+
+		// 連鎖合成の畳み込み: 同じバッチ内に同じユニットのより高い星への合成があれば、こちらは素材として
+		// 消費済みなので演出・通知を出さない(★1→★2→★3は★3の演出だけが見えればよい。intent.md 要求4)。
+		bool superseded = false;
+		for (size_t j = 0; j < events.size(); ++j)
+		{
+			if (events[j].def == ev.def && events[j].newStarLevel > ev.newStarLevel)
+			{
+				superseded = true;
+				break;
+			}
+		}
+		if (superseded) continue;
+
+		// 演出の位置は、記録時点ではなく今の盤面/ベンチから引き直す(同フレーム内の後続操作でベンチの並びが
+		// ずれる・合成後のユニットが動く可能性があるため)。見つからなければ(売却された等)演出は出さない。
+		bool found = false;
+		bool onBoard = false;
+		HexCoord boardPos;
+		int benchIndex = -1;
+		if (ev.onBoard)
+		{
+			const UnitInstance* atPos = player.FindBoardUnitAt(ev.pos);
+			if (atPos != nullptr && atPos->def == ev.def && atPos->starLevel == ev.newStarLevel)
+			{
+				found = true;
+				onBoard = true;
+				boardPos = ev.pos;
+			}
+		}
+		if (!found)
+		{
+			for (const auto& unit : player.board)
+			{
+				if (unit.def == ev.def && unit.starLevel == ev.newStarLevel)
+				{
+					found = true;
+					onBoard = true;
+					boardPos = unit.position;
+					break;
+				}
+			}
+		}
+		if (!found)
+		{
+			// ベンチでは合成後のユニットは末尾へ追加されるため、後ろから探す。
+			for (int b = (int)player.bench.size() - 1; b >= 0; --b)
+			{
+				if (player.bench[b].def == ev.def && player.bench[b].starLevel == ev.newStarLevel)
+				{
+					found = true;
+					benchIndex = b;
+					break;
+				}
+			}
+		}
+		if (found)
+		{
+			m_starUpEffect.Spawn(ev.newStarLevel, onBoard, boardPos, benchIndex);
+		}
+
+		// 星表記はスプライトフォントにあるASCIIの"*"を使う("★"は未収録でクラッシュするため)。
+		wchar_t buf[96];
+		swprintf_s(buf, L"合成! %hs *%d", ev.def->name.c_str(), ev.newStarLevel);
+		if (!notice.empty()) notice += L" / ";
+		notice += buf;
+
+		wchar_t log[128];
+		swprintf_s(log, L"[star-up] %hs -> *%d (%ls)\n", ev.def->name.c_str(), ev.newStarLevel,
+			!found ? L"no effect: unit not found" : (onBoard ? L"board" : L"bench"));
+		OutputDebugString(log);
+	}
+
+	player.mergeEvents.clear();
+	return notice;
+}
+
 /// <summary>
 /// 10ラウンド分の固定敵編成を組み立てて返す。体数・コスト・スターレベル・装備が
 /// ラウンドが進むほど段階的に強くなるように設計している。
@@ -1216,6 +1345,10 @@ void Game::Render(RenderContext& rc)
 
 		// ドラッグ中のドロップ候補ハイライトと名札(他の準備フェーズUIより手前、ツールチップより奥)。
 		m_dragDrop.Draw(rc, m_hotRegions, player, m_uiRectRenderer);
+
+		// ★アップ演出(star-up-effect)。盤面/ベンチの上に重ねる2Dオーバーレイなので、他の準備フェーズUIより後
+		// (ツールチップ・ヘルプより奥)に登録する。再生中の演出が無ければ何も登録しない。
+		m_starUpEffect.Draw(rc, m_uiRectRenderer);
 	}
 	// 戦闘の再生中は、各ユニットの頭上にHPバーを表示する。
 	else if (m_gameState.currentPhase == Phase::Combat && m_combatSimDone)

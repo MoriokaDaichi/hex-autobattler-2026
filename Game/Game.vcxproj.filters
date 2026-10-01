@@ -87,6 +87,9 @@
     <ClCompile Include="RoundRecordUIRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="StarUpEffectRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
     <ClCompile Include="UIRectRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -185,6 +188,9 @@
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="RoundRecordUIRenderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="StarUpEffectRenderer.h">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="UIRectRenderer.h">

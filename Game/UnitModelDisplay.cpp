@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "UnitModelDisplay.h"
 #include "HexGridRenderer.h"
+#include "StarUpEffectRenderer.h"
 
 namespace
 {
@@ -32,7 +33,7 @@ namespace
 	// 星レベルに応じた表示スケール倍率。★が上がるほど一回り大きく見せて盤面上で区別できるようにする。
 	// StarLevelSystem::GetStarMultiplier(★1比 約1.8倍/★)はステータス用で、そのまま使うと
 	// ★3が基準の約3.24倍(=スケール32)になり1マスに収まらないため、見た目専用の控えめな値を独自に定義する。
-	// エフェクト・パーティクル等による更なる差別化は今回スコープ外(スケール変化のみで十分と判断)。
+	// 常時の差別化はスケール変化のみ。合成した瞬間の演出は StarUpEffectRenderer(star-up-effect)が担う。
 	float GetStarModelScaleMultiplier(int starLevel)
 	{
 		switch (starLevel)
@@ -44,7 +45,7 @@ namespace
 	}
 }
 
-void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
+void UnitModelDisplay::Update(const std::vector<UnitInstance>& board, const StarUpEffectRenderer* starUpEffect)
 {
 	RebuildIfBoardChanged(board);
 
@@ -86,6 +87,12 @@ void UnitModelDisplay::Update(const std::vector<UnitInstance>& board)
 
 		// 星レベルに応じてモデルを一回り大きくする(★1=基準/★2=やや大/★3=更に大)。
 		float starScale = GetStarModelScaleMultiplier(unit.starLevel);
+		// ★アップ演出のポップ(一瞬拡大して戻る)。星倍率に乗算し、下のYリフトにも効かせることで
+		// 足元は地面に付いたまま上へ伸びて見える(star-up-effect)。
+		if (starUpEffect != nullptr)
+		{
+			starScale *= starUpEffect->GetModelPopScale(unit.position);
+		}
 		Vector3 modelScale = kUnitModelScale;
 		modelScale.Scale(starScale);
 

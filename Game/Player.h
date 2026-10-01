@@ -37,6 +37,21 @@ struct Player
 	// Player側は積むだけで、Game::Update()が次フレーム頭でShopUIRendererのフィードバックへ流してclearする。
 	std::vector<std::wstring> itemNotices;
 
+	/// <summary>
+	/// 合成で星が上がった1件分の記録(star-up-effect)。合成後のユニットがどこに居るかを演出側へ伝える。
+	/// </summary>
+	struct MergeEvent
+	{
+		const UnitDef* def = nullptr;
+		int newStarLevel = 0;
+		bool onBoard = false; // trueなら盤面のposのマス、falseならベンチ(末尾へ追加される)。
+		HexCoord pos;         // onBoard時のみ有効。
+	};
+
+	// 合成成立の記録(star-up-effect)。itemNoticesと同じく、Player側は積むだけで、
+	// Game::Update()が次フレーム頭で★アップ演出(StarUpEffectRenderer)とフィードバック文へ流してclearする。
+	std::vector<MergeEvent> mergeEvents;
+
 	Player() = default;
 	Player(const std::string& playerName) : name(playerName) {}
 
@@ -385,6 +400,14 @@ struct Player
 				bench.push_back(merged);
 			}
 
+			// ★アップ演出用に、どのユニットが・どの星に・どこで合成されたかを記録する(star-up-effect)。
+			MergeEvent mergeEvent;
+			mergeEvent.def = def;
+			mergeEvent.newStarLevel = newStarLevel;
+			mergeEvent.onBoard = placeOnBoard;
+			mergeEvent.pos = mergedPos;
+			mergeEvents.push_back(mergeEvent);
+
 			return true;
 		}
 
@@ -430,7 +453,8 @@ private:
 		if (carriedCount == 0) return;
 
 		wchar_t head[64];
-		swprintf_s(head, L"合成★%d: ", merged.starLevel);
+		// 星表記はASCIIの"*"(スプライトフォントに"★"グリフが無く、描くとFontEngineが例外を出すため。star-up-effect)。
+		swprintf_s(head, L"合成*%d: ", merged.starLevel);
 		std::wstring notice = head;
 		if (!merged.items.empty())
 		{

@@ -35,6 +35,7 @@
 #include "TooltipUIRenderer.h"
 #include "DragDropController.h"
 #include "HelpUIRenderer.h"
+#include "StarUpEffectRenderer.h"
 
 class Game : public IGameObject
 {
@@ -101,6 +102,20 @@ private:
 	ResultUIRenderer m_resultUI; // ラウンド結果一言・ゲームオーバー/ゲームクリア画面を2D表示する。
 	UIRectRenderer m_uiRectRenderer; // 単色矩形(HPバー・XPバー・スキルゲージバー・暗幕)を描く共通ヘルパー。
 	SaveSystem m_saveSystem; // 準備フェーズの進行状況(GameState)をテキストファイルへ保存/復元する。
+
+	// ★アップ演出(star-up-effect)。Player::mergeEventsをUpdate()で消費して演出を開始し、準備フェーズ中だけ
+	// 再生・描画する。盤面ユニットのポップはm_unitModelDisplay.Update()へ渡して反映する。
+	StarUpEffectRenderer m_starUpEffect;
+	// ★3のカメラ揺れ用。Start()で設定したカメラ位置/注視点を基準として控え、揺れ中は基準+オフセットを設定する。
+	Vector3 m_cameraBasePosition;
+	Vector3 m_cameraBaseTarget;
+	bool m_cameraShakeApplied = false; // 前フレームに揺れを適用したか(揺れ終わりに基準へ戻すため)。
+
+	/// <summary>
+	/// players[0].mergeEventsを消費して★アップ演出を開始し、合成のフィードバック文を返す(無ければ空)。
+	/// 同じバッチ内の連鎖合成(★1→★2→★3)は最終段の演出だけを出す。
+	/// </summary>
+	std::wstring ConsumeMergeEvents();
 
 	// マウス操作基盤(ui-mouse-cards フェーズ1)。毎フレームUpdate()の先頭で、各UI Rendererの
 	// BuildHotRegions()を使って"今フレームの"クリック可能矩形一覧へ詰め直す(Render()のDraw()に

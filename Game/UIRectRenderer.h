@@ -42,8 +42,10 @@ public:
 	/// <param name="color">RGBA。alphaは0〜1(半透明可、AlphaBlendMode_Trans固定)。</param>
 	/// <param name="pivot">0〜1の正規化ピボット。省略時(0.5,0.5)=中心。左端基準で右に伸ばす
 	/// バー表現には(0.0,0.5)を指定する。</param>
+	/// <param name="rotationRad">画面内(Z軸まわり)の回転角(ラジアン)。省略時0=回転なし。
+	/// ★アップ演出(star-up-effect)の菱形の光点(45°回転)に使う。回転はピボットまわり。</param>
 	void DrawRect(RenderContext& rc, const Vector2& pos, const Vector2& size, const Vector4& color,
-		const Vector2& pivot = Vector2(0.5f, 0.5f));
+		const Vector2& pivot = Vector2(0.5f, 0.5f), float rotationRad = 0.0f);
 
 	/// <summary>
 	/// 「枠+塗り」のカードパネルを1枚描く(ui-mouse-cardsフェーズ3、全UIレンダラー共通のカード表現。

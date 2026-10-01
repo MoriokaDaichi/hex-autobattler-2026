@@ -14,7 +14,10 @@ namespace
 	// ショップ5枠(10) + ベンチ最大8行(16) + アイテム最大9件(18) + トレイトパネル背景+行区切り(10)
 	// + 右上HUDパネル(8) + 戦闘中HPバー最大18体分(90) + ツールチップ(2) + Result/GameOver暗幕(1)
 	// ≒ 155(戦闘中/準備中は排他だが最大値で見積もり)。旧160はほぼ余裕が無かったため256へ。
-	const size_t kPrewarmCount = 256;
+	//
+	// [star-up-effectで384へ引き上げ] 準備フェーズの★アップ演出が★3の1件で最大≒105枚
+	// (リング3本×光点24 + 粒子28 + 光の柱2 + フラッシュ1 等)を使い、連続合成で重なることもあるため。
+	const size_t kPrewarmCount = 384;
 
 	void InitOneSprite(Sprite& sprite)
 	{
@@ -61,7 +64,7 @@ Sprite& UIRectRenderer::AcquireSprite()
 	return *m_pool[m_used++];
 }
 
-void UIRectRenderer::DrawRect(RenderContext& rc, const Vector2& pos, const Vector2& size, const Vector4& color, const Vector2& pivot)
+void UIRectRenderer::DrawRect(RenderContext& rc, const Vector2& pos, const Vector2& size, const Vector4& color, const Vector2& pivot, float rotationRad)
 {
 	Sprite& sprite = AcquireSprite();
 
@@ -70,7 +73,13 @@ void UIRectRenderer::DrawRect(RenderContext& rc, const Vector2& pos, const Vecto
 	// Z は -0.5f。既定 g_camera2D は eye z=-1 / target z=0(forward +Z)、Sprite::Draw() の
 	// 直交射影は near0.1/far1.0。world z=0 だと far 面ちょうどでクリップされ得るため、
 	// eye とターゲットの間(near/far 内・ミラーなし)に置く。g_camera2D 自体は書き換えない。
-	sprite.Update(Vector3(pos.x, pos.y, -0.5f), Quaternion::Identity, scale, pivot);
+	// 回転はUI平面内(Z軸まわり)のみ。0なら従来どおりIdentity。
+	Quaternion rot = Quaternion::Identity;
+	if (rotationRad != 0.0f)
+	{
+		rot.SetRotationZ(rotationRad);
+	}
+	sprite.Update(Vector3(pos.x, pos.y, -0.5f), rot, scale, pivot);
 	sprite.SetMulColor(color);
 	sprite.Draw(rc);
 }

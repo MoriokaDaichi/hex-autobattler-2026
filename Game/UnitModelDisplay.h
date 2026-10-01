@@ -8,6 +8,8 @@
 #include "Player.h"
 #include "CombatPlayback.h"
 
+class StarUpEffectRenderer;
+
 /// <summary>
 /// ヘックス盤面に配置されたユニット(UnitInstanceの並び)の3Dモデルを表示するクラス。
 /// ModelRenderは既にIRendererを継承しており、Game::Update()/Game::Render()から
@@ -24,8 +26,10 @@ public:
 	/// 毎フレーム呼ぶ。盤面構成(board)が前フレームから変化していれば表示用モデルを再構築し、
 	/// 変化の有無に関わらず各モデルの位置とアニメーション状態を更新する。
 	/// (準備/結果フェーズ用。位置は board[i].position、向きは SetIdleFacingDir() の方向で固定、idle アニメ。)
+	/// starUpEffect を渡すと、★アップ演出中のマスのユニットへポップ(一瞬の拡大)倍率を掛ける(star-up-effect)。
+	/// 敵盤面用インスタンスは nullptr のまま(演出対象外)。
 	/// </summary>
-	void Update(const std::vector<UnitInstance>& board);
+	void Update(const std::vector<UnitInstance>& board, const StarUpEffectRenderer* starUpEffect = nullptr);
 
 	/// <summary>
 	/// board 駆動(Update)時に全モデルを向かせる方向(XZ平面)を設定する。既定は +Z(敵陣 = 画面奥の方向)。
