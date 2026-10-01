@@ -32,11 +32,9 @@ public:
 	static constexpr float kBenchPanelBottomY = kBenchTopY - kBenchStepY * (float)(kBenchMaxVisibleRows + 1);
 
 	/// <summary>準備フェーズ中に毎フレーム呼ぶ。ベンチ一覧を表示対象にする。</summary>
-	/// <param name="benchFocused">今カーソルのフォーカスがベンチに当たっているか(選択中の行を強調)。</param>
-	/// <param name="benchCursorIndex">ベンチ一覧上のカーソル位置(CursorSelectionSystem由来)。</param>
 	/// <param name="hoveredIndex">マウスホバー中のベンチindex(無ければ-1)。</param>
 	/// <param name="rectRenderer">カード背景の塗り矩形を描く共通ヘルパー。OnRender2D用に保持する。</param>
-	void DrawPreparation(RenderContext& rc, const Player& player, bool benchFocused, int benchCursorIndex, int hoveredIndex, UIRectRenderer& rectRenderer);
+	void DrawPreparation(RenderContext& rc, const Player& player, int hoveredIndex, UIRectRenderer& rectRenderer);
 
 	/// <summary>戦闘の再生中に毎フレーム呼ぶ。playbackの各ユニットのHPバーを表示対象にする。</summary>
 	/// <param name="rectRenderer">HPバー/スキルゲージバーの塗り矩形を描く共通ヘルパー。OnRender2D内で
@@ -112,7 +110,5 @@ private:
 	std::vector<PopupView> m_popupViews;
 	std::vector<BenchView> m_bench;
 	UIRectRenderer* m_rectRenderer = nullptr; // Draw*()で渡されたものをOnRender2D用に保持する。
-	bool m_benchFocused = false;
-	int m_benchCursorIndex = -1;
 	int m_benchHoveredIndex = -1;
 };

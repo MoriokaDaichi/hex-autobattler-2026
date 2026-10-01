@@ -12,9 +12,8 @@ class ShopSystem
 public:
 	static const int kMinUnitCost = 1;
 	static const int kMaxUnitCost = 5;
-	// リロール1回のゴールド。help-panelでヘルプ文言の参照用に追加した。Game.cpp内のローカル定数
-	// kRerollCost(Update()のY/Rerollボタン処理とRender()のShopUIRenderer::Draw引数の2箇所)と同値。
-	// 並行作業(drag-and-drop)とのマージ衝突を避けるため、Game.cpp側は今回は触らずに後日この定数へ寄せる。
+	// リロール1回のゴールド。Game.cpp(Update()のRerollボタン処理・Render()のShopUIRenderer::Draw引数)と
+	// HelpContent.cpp(ヘルプ文言)が参照する(remove-gamepad-inputでGame.cpp内の手書き定数をここへ統一した)。
 	static const int kRerollCost = 2;
 
 	/// <summary>

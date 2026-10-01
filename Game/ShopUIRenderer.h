@@ -35,8 +35,6 @@ public:
 	/// 準備フェーズ中、毎フレームGame::Render()から呼ぶ。表示に必要な現在値をコピーして保持し、
 	/// 2D描画パスへの登録(AddRenderObject)を行う。shopが空の場合は何も描画しない。
 	/// </summary>
-	/// <param name="shopCursorIndex">ショップ一覧上のカーソル位置(CursorSelectionSystem由来)。</param>
-	/// <param name="shopFocused">今カーソルのフォーカスがショップに当たっているか(当たっている枠を強調表示する)。</param>
 	/// <param name="shopLocked">ショップがロックされているか(ヘッダー行に[LOCKED]を表示し金色にする)。</param>
 	/// <param name="hoveredIndex">マウスホバー中のショップ枠index(無ければ-1)。カード枠のハイライトに使う。</param>
 	/// <param name="rectRenderer">カード・Reroll/BuyXP/Lock/NextPhaseボタンの背景矩形を描く共通ヘルパー。
@@ -48,8 +46,6 @@ public:
 		int xpForNextLevel,
 		int rerollCost,
 		int buyXpCost,
-		int shopCursorIndex,
-		bool shopFocused,
 		bool shopLocked,
 		int hoveredIndex,
 		UIRectRenderer& rectRenderer);
@@ -98,8 +94,6 @@ private:
 	int m_xpForNextLevel = 0;
 	int m_rerollCost = 0;
 	int m_buyXpCost = 0;
-	int m_cursorIndex = -1;
-	bool m_shopFocused = false;
 	bool m_shopLocked = false;
 	int m_hoveredIndex = -1;
 	bool m_hasData = false;

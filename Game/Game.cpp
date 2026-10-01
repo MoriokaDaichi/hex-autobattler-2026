@@ -126,7 +126,6 @@ void Game::InitializeNewRun()
 	m_shopLocked = false;
 	m_heldUnclaimedIndex = -1;
 	m_heldBoardHexValid = false;
-	m_heldBoardHexFromMouse = false;
 	m_mouseHeldBenchIndex = -1;
 	m_hasPendingSellTarget = false;
 	m_sellConfirmTimer = 0.0f;
@@ -185,13 +184,6 @@ void Game::Update()
 			m_enemyModelDisplay.Clear();
 			m_enemyPreviewRound = -1; // 次に Preparation へ戻ったとき確実に作り直す。
 		}
-	}
-
-	// マウス・キーボード・ゲームパッドを横断するカーソル/選択状態を更新する。
-	// ヘルプ表示中は止める(十字キー/矢印がヘルプのカテゴリ・ページ切り替えと二重に効かないように。help-panel)。
-	if (!m_helpUI.IsOpen())
-	{
-		m_cursorSelection.Update();
 	}
 
 	// ショップUIの操作フィードバック(数秒で自動的に消える)の残り時間を進める。
@@ -266,8 +258,8 @@ void Game::Update()
 	m_helpUI.BuildHotRegions(m_hotRegions);
 	m_uiInteraction.Update(m_hotRegions);
 
-	// ヘルプの開閉・カテゴリ/ページ切り替え。開いている間(と、B/Escで閉じたそのフレーム)は、タイトル/準備/
-	// 終了画面のパッド・キーボード入力処理を丸ごとスキップする(閉じたBで戦闘開始してしまう等を防ぐ)。
+	// ヘルプの開閉・カテゴリ/ページ切り替え。開いている間(と、Esc等で閉じたそのフレーム)は、タイトル/準備/
+	// 終了画面の入力処理を丸ごとスキップする(閉じたクリックで盤面等が反応してしまう等を防ぐ)。
 	// 戦闘・結果フェーズは入力を使わず、進行も止めないため対象外。docs/tasks/help-panel/plan.md §5。
 	const bool helpWasOpen = m_helpUI.IsOpen();
 	m_helpUI.UpdateInput(m_uiInteraction);
@@ -284,19 +276,19 @@ void Game::Update()
 	}
 	else if (m_gameState.currentPhase == Phase::Title)
 	{
-		// セーブデータが有る場合は「[A] 続きから / [X] 新規開始」、無い場合は従来どおり「[A] 開始」。
+		// セーブデータが有る場合は「続きから / 新規開始」、無い場合は従来どおり「開始」をクリックする。
 		const bool hasSave = m_saveSystem.SaveFileExists();
 
-		// マウス: TitleStartButtonは「続きから」(hasSave時)/「開始」(hasSave無し時)の両方を兼ねる
-		// (BuildHotRegions()が状況に応じてどちらか一方だけを登録するため、Aボタンと1:1で対応する)。
+		// TitleStartButtonは「続きから」(hasSave時)/「開始」(hasSave無し時)の両方を兼ねる
+		// (BuildHotRegions()が状況に応じてどちらか一方だけを登録する)。
 		UIHotRegion titleClick;
 		bool hasTitleClick = m_uiInteraction.GetLeftClicked(titleClick);
 		bool mouseClickedTitleStart = hasTitleClick && titleClick.kind == UIRegionKind::TitleStartButton;
 		bool mouseClickedTitleNewGame = hasTitleClick && titleClick.kind == UIRegionKind::TitleNewGameButton;
 
-		if (hasSave && (g_pad[0]->IsTrigger(enButtonA) || mouseClickedTitleStart))
+		if (hasSave && mouseClickedTitleStart)
 		{
-			// [A] CONTINUE: セーブデータをロードして準備フェーズへ。失敗時はタイトルに留まる。
+			// CONTINUE: セーブデータをロードして準備フェーズへ。失敗時はタイトルに留まる。
 			if (m_saveSystem.Load(m_gameState, m_unitDatabase, m_itemDatabase))
 			{
 				m_currentShop.clear();
@@ -310,34 +302,21 @@ void Game::Update()
 				OutputDebugString(L"[Load] FAILED to load save data (missing/corrupt/old). Staying on Title.\n");
 			}
 		}
-		else if (hasSave && (g_pad[0]->IsTrigger(enButtonX) || mouseClickedTitleNewGame))
+		else if (hasSave && mouseClickedTitleNewGame)
 		{
-			// [X] NEW GAME: セーブをロードせず、Start()時のInitializeNewRun済みの初期状態で開始する
+			// NEW GAME: セーブをロードせず、Start()時のInitializeNewRun済みの初期状態で開始する
 			// (ディスク上のセーブファイルはそのまま残す)。
 			m_gameState.currentPhase = Phase::Preparation;
 		}
-		else if (!hasSave && (g_pad[0]->IsTrigger(enButtonA) || mouseClickedTitleStart))
+		else if (!hasSave && mouseClickedTitleStart)
 		{
-			// セーブ無し: 従来どおりAボタンで新規開始。
+			// セーブ無し: 新規開始。
 			m_gameState.currentPhase = Phase::Preparation;
 		}
 	}
 	else if (m_gameState.currentPhase == Phase::Preparation)
 	{
-		// フォーカス中の一覧の実際の要素数に合わせて、カーソルが範囲外を指さないようにする。
 		Player& prepPlayer = m_gameState.players[0];
-		if (m_cursorSelection.GetFocus() == InputFocus::Shop)
-		{
-			m_cursorSelection.ClampListCursor((int)m_currentShop.size());
-		}
-		else if (m_cursorSelection.GetFocus() == InputFocus::Bench)
-		{
-			m_cursorSelection.ClampListCursor((int)prepPlayer.bench.size());
-		}
-		else if (m_cursorSelection.GetFocus() == InputFocus::Items)
-		{
-			m_cursorSelection.ClampListCursor((int)prepPlayer.unclaimedItems.size());
-		}
 
 		// 手に持っているアイテムのindexが、装備等でリストが縮んで範囲外になっていたら解除する。
 		if (m_heldUnclaimedIndex >= (int)prepPlayer.unclaimedItems.size())
@@ -349,14 +328,6 @@ void Game::Update()
 		if (m_mouseHeldBenchIndex >= (int)prepPlayer.bench.size())
 		{
 			m_mouseHeldBenchIndex = -1;
-		}
-
-		// 盤面から離れたら「移動元選択中」は解除する(手持ちアイテムと同じ考え方)。ただしマウスで
-		// 拾った選択(m_heldBoardHexFromMouse)には適用しない。マウス操作はm_cursorSelectionの
-		// focusを変更しない(Tabを押さない)ため、適用すると拾った直後のフレームで即座に解除されてしまう。
-		if (!m_heldBoardHexFromMouse && m_cursorSelection.GetFocus() != InputFocus::Board)
-		{
-			m_heldBoardHexValid = false;
 		}
 
 		// まだショップが無ければ抽選する。
@@ -377,8 +348,7 @@ void Game::Update()
 			}
 		}
 
-		// F5キーで、現在の準備フェーズの進行状況をファイルへ手動セーブする。
-		// (ゲームパッドのA/B/X/Y/LB1/RB1は準備フェーズで全て別用途に埋まっているため、キーボードに割り当てる)
+		// F5キーで、現在の準備フェーズの進行状況をファイルへ手動セーブする(キーボードを直接読む)。
 		if (g_keyboard->IsTrigger(VK_F5))
 		{
 			bool saved = m_saveSystem.Save(m_gameState);
@@ -386,123 +356,6 @@ void Game::Update()
 				saved ? L"セーブしました (savedata.txt)" : L"セーブに失敗しました",
 				saved ? ShopUIRenderer::FeedbackLevel::Success : ShopUIRenderer::FeedbackLevel::Failure);
 			OutputDebugString(saved ? L"[Save] wrote savedata.txt\n" : L"[Save] FAILED to write savedata.txt\n");
-		}
-
-		// Aボタン。フォーカスと「アイテムを手に持っているか」で意味が変わる:
-		//  - Itemsフォーカス中: カーソルのアイテムを手に持つ / もう一度押すと戻す。
-		//  - アイテムを手に持った状態でBench/Boardフォーカス中: 選択中のユニットへ装備を確定する。
-		//  - それ以外(ショップフォーカス中はカーソルのユニット、他は0番目): 従来通りユニットを買う。
-		// マウス左クリックによる同等の操作は、この直後の専用ブロック(--- マウス左クリック ---)で
-		// 別途扱う(ゲームパッドの暗黙フォーカス前提とマウスの明示クリック対象は前提が異なるため、
-		// この分岐へ合成しない。docs/tasks/ui-mouse-cards/plan.md §2-2参照)。
-		if (g_pad[0]->IsTrigger(enButtonA))
-		{
-			Player& player = m_gameState.players[0];
-			InputFocus focus = m_cursorSelection.GetFocus();
-			bool holdingItem = (m_heldUnclaimedIndex >= 0 && m_heldUnclaimedIndex < (int)player.unclaimedItems.size());
-
-			if (focus == InputFocus::Items)
-			{
-				if (player.unclaimedItems.empty())
-				{
-					m_shopUI.PushFeedback(L"未装備アイテムがありません", ShopUIRenderer::FeedbackLevel::Failure);
-				}
-				else
-				{
-					int idx = m_cursorSelection.GetListCursorIndex();
-					if (idx < 0 || idx >= (int)player.unclaimedItems.size()) idx = 0;
-
-					if (m_heldUnclaimedIndex == idx)
-					{
-						m_heldUnclaimedIndex = -1; // 同じアイテムをもう一度選んだら手放す。
-						m_shopUI.PushFeedback(L"アイテムを戻しました", ShopUIRenderer::FeedbackLevel::Info);
-					}
-					else
-					{
-						m_heldUnclaimedIndex = idx;
-						wchar_t fb[160];
-						swprintf_s(fb, L"アイテム選択: %hs  (ユニットを選び[A]で装備)", player.unclaimedItems[idx]->name.c_str());
-						m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
-					}
-				}
-			}
-			else if (holdingItem && (focus == InputFocus::Bench || focus == InputFocus::Board))
-			{
-				const ItemDef* heldItem = player.unclaimedItems[m_heldUnclaimedIndex];
-
-				UnitInstance* targetUnit = nullptr;
-				if (focus == InputFocus::Bench)
-				{
-					int benchIndex = m_cursorSelection.GetListCursorIndex();
-					if (benchIndex >= 0 && benchIndex < (int)player.bench.size())
-					{
-						targetUnit = &player.bench[benchIndex];
-					}
-				}
-				else // InputFocus::Board
-				{
-					HexCoord hex(0, 0);
-					if (m_cursorSelection.GetHexCursor(hex))
-					{
-						targetUnit = player.FindBoardUnitAt(hex); // 非constオーバーロード(Player.h)。
-					}
-				}
-
-				if (targetUnit == nullptr)
-				{
-					m_shopUI.PushFeedback(L"装備先のユニットがいません", ShopUIRenderer::FeedbackLevel::Failure);
-				}
-				else
-				{
-					bool equipped = m_itemSystem.GiveItem(*targetUnit, heldItem, m_itemDatabase, player.name);
-					if (equipped)
-					{
-						wchar_t fb[192];
-						swprintf_s(fb, L"装備: %hs -> %hs", heldItem->name.c_str(), targetUnit->def->name.c_str());
-						m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
-
-						player.unclaimedItems.erase(player.unclaimedItems.begin() + m_heldUnclaimedIndex);
-						m_heldUnclaimedIndex = -1;
-
-						wchar_t log[224];
-						swprintf_s(log, L"[Equip] %hs -> %hs (unclaimed left=%d, unit items=%d)\n",
-							heldItem->name.c_str(), targetUnit->def->name.c_str(),
-							(int)player.unclaimedItems.size(), (int)targetUnit->items.size());
-						OutputDebugString(log);
-					}
-					else
-					{
-						m_shopUI.PushFeedback(L"装備できません (アイテム枠が満杯)", ShopUIRenderer::FeedbackLevel::Failure);
-					}
-				}
-			}
-			else
-			{
-				int shopIndex = (focus == InputFocus::Shop) ? m_cursorSelection.GetListCursorIndex() : 0;
-				const UnitDef* target = (shopIndex >= 0 && shopIndex < (int)m_currentShop.size()) ? m_currentShop[shopIndex] : nullptr;
-				bool success = target != nullptr && player.BuyUnit(target);
-
-				wchar_t buf[256];
-				swprintf_s(buf, L"Buy result: %hs, Shop index: %d, Gold left: %d, Bench count: %d\n",
-					success ? "true" : "false", shopIndex, player.gold, (int)player.bench.size());
-				OutputDebugString(buf);
-
-				if (success)
-				{
-					// 買った枠は空にする(TFT標準。リロール/次ラウンドのRollShopで再補充される)。
-					m_currentShop[shopIndex] = nullptr;
-
-					wchar_t fb[128];
-					swprintf_s(fb, L"購入: %hs  (-%dG)", target->name.c_str(), target->cost);
-					m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
-				}
-				else if (target != nullptr)
-				{
-					wchar_t fb[128];
-					swprintf_s(fb, L"ゴールド不足: %hs は %dG 必要 (所持 %dG)", target->name.c_str(), target->cost, player.gold);
-					m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Failure);
-				}
-			}
 		}
 
 		// --- マウスドラッグ&ドロップ(drag-and-drop) ---
@@ -517,18 +370,13 @@ void Game::Update()
 				m_heldUnclaimedIndex = -1;
 				m_mouseHeldBenchIndex = -1;
 				m_heldBoardHexValid = false;
-				m_heldBoardHexFromMouse = false;
 				m_hasPendingSellTarget = false;
 			}
 		}
 
-		// --- マウス左クリック(A/Xボタン相当。専用の分岐で解決する) ---
-		// ゲームパッドのA/Xは「現在のフォーカス+一覧カーソル/ヘックスカーソル」という暗黙の対象を
-		// 前提にしているが、マウスのクリックは対象(UIHotRegion)が最初から明示的なため、focusを
-		// 合成して既存ブロックへ流用することはしない(Bench/Boardフォーカスで何も持っていない時に
-		// 誤ってshop[0]を購入してしまう既存Aボタンの分岐へ迷い込むため)。実処理は既存ブロックと
-		// 同じPlayer::*/ItemSystem::*のエントリポイントを直接呼ぶことで、ドメインロジックの
-		// 二重実装は避ける(docs/tasks/ui-mouse-cards/plan.md §2-2、レビュー承認済み)。
+		// --- マウス左クリック(購入 / アイテムを持つ・装備 / ベンチ→盤面配置 / 盤面内移動) ---
+		// クリック対象(UIHotRegion)ごとに、Player::*/ItemSystem::*のエントリポイントを直接呼ぶ
+		// (docs/tasks/ui-mouse-cards/plan.md §2-2)。
 		{
 			UIHotRegion leftClicked;
 			bool holdingItem = (m_heldUnclaimedIndex >= 0 && m_heldUnclaimedIndex < (int)prepPlayer.unclaimedItems.size());
@@ -567,7 +415,7 @@ void Game::Update()
 				}
 
 				case UIRegionKind::UnclaimedItem:
-					// パッドのItemsフォーカス+A分岐と同じ「手に持つ/もう一度で戻す」ロジック。
+					// 「手に持つ / 同じアイテムをもう一度クリックで戻す」。
 					if (leftClicked.index >= 0 && leftClicked.index < (int)prepPlayer.unclaimedItems.size())
 					{
 						if (m_heldUnclaimedIndex == leftClicked.index)
@@ -646,10 +494,9 @@ void Game::Update()
 					}
 					else if (m_mouseHeldBenchIndex < 0 && !m_heldBoardHexValid)
 					{
-						// 盤面内再配置のために「掴む」(既存m_heldBoardHexをマウス発として使う。§2-2参照)。
+						// 盤面内再配置のために「掴む」(移動先の空きマスをクリックで確定)。
 						m_heldBoardHex = leftClicked.hex;
 						m_heldBoardHexValid = true;
-						m_heldBoardHexFromMouse = true;
 
 						const UnitInstance* onCell = prepPlayer.FindBoardUnitAt(leftClicked.hex);
 						if (onCell != nullptr)
@@ -719,7 +566,7 @@ void Game::Update()
 			}
 		}
 
-		// --- マウス右クリック(キャンセル / LB1相当の売却・ベンチ戻しの2段階確認) ---
+		// --- マウス右クリック(キャンセル / 売却・ベンチ戻しの2段階確認) ---
 		{
 			bool holdingSomething = (m_heldUnclaimedIndex >= 0) || m_mouseHeldBenchIndex >= 0 || m_heldBoardHexValid;
 
@@ -785,11 +632,10 @@ void Game::Update()
 			}
 		}
 
-		// Bボタン(またはマウスで画面右下の[戦闘開始]ボタンをクリック)で次のフェーズに進む。
-		// この操作はフォーカス/カーソルの状態に依存しないため、パッド/マウスの発火を単純にORするだけでよい。
+		// 画面右下の[戦闘開始]ボタンをクリックで次のフェーズに進む。
 		UIHotRegion nextPhaseClick;
 		bool mouseClickedNextPhase = m_uiInteraction.GetLeftClicked(nextPhaseClick) && nextPhaseClick.kind == UIRegionKind::NextPhaseButton;
-		if (g_pad[0]->IsTrigger(enButtonB) || mouseClickedNextPhase)
+		if (mouseClickedNextPhase)
 		{
 			// ロック中はショップを維持する(次の準備フェーズで空でないため自動リロールされない)。
 			if (!m_shopLocked)
@@ -798,117 +644,18 @@ void Game::Update()
 			}
 			m_heldUnclaimedIndex = -1; // 手に持ったままのアイテムは戦闘に持ち越さず、一覧へ戻す。
 			m_heldBoardHexValid = false; // 盤面内移動の選択も戦闘に持ち越さない。
-			m_heldBoardHexFromMouse = false;
 			m_mouseHeldBenchIndex = -1;
 			m_hasPendingSellTarget = false;
 			m_dragDrop.Cancel(); // ドラッグ中のものも戦闘に持ち越さない。
 			m_gameState.currentPhase = Phase::Combat;
 		}
 
-		// Xボタン。Boardフォーカスでの盤面内再配置と、従来のベンチ→盤面配置を兼ねる:
-		//  - Boardフォーカス・移動元未選択・カーソルが盤面ユニット上 → そのユニットを「移動元」に選択。
-		//  - Boardフォーカス・移動元選択中・カーソルが空きの自陣マス → そのマスへ移動。
-		//  - Boardフォーカス・移動元選択中・カーソルが移動元と同じマス → 選択解除(キャンセル)。
-		//  - それ以外(ベンチフォーカス、または盤面の空きマス) → 従来通りベンチのユニットを配置。
-		if (g_pad[0]->IsTrigger(enButtonX))
-		{
-			Player& player = m_gameState.players[0];
-			InputFocus focus = m_cursorSelection.GetFocus();
-
-			HexCoord cursorHex;
-			bool haveCursor = m_cursorSelection.GetHexCursor(cursorHex);
-
-			bool handledByReposition = false;
-			if (focus == InputFocus::Board)
-			{
-				if (m_heldBoardHexValid)
-				{
-					// 移動元選択済み → 今回のXは「移動先の確定」。
-					handledByReposition = true;
-					if (!haveCursor)
-					{
-						m_shopUI.PushFeedback(L"移動先マスを選んでください", ShopUIRenderer::FeedbackLevel::Failure);
-					}
-					else if (cursorHex == m_heldBoardHex)
-					{
-						m_heldBoardHexValid = false;
-						m_shopUI.PushFeedback(L"移動をキャンセルしました", ShopUIRenderer::FeedbackLevel::Info);
-					}
-					else
-					{
-						bool ok = player.MoveUnitOnBoard(m_heldBoardHex, cursorHex);
-
-						wchar_t buf[192];
-						swprintf_s(buf, L"Board move result: %hs, from (%d,%d) to (%d,%d)\n",
-							ok ? "true" : "false", m_heldBoardHex.q, m_heldBoardHex.r, cursorHex.q, cursorHex.r);
-						OutputDebugString(buf);
-
-						if (ok)
-						{
-							wchar_t fb[128];
-							// 矢印はASCIIの "->"。全角矢印(U+2192)はこのFontEngineのSpriteFontに
-							// グリフが無く、default glyph未設定のため描画時に例外→abortする。
-							swprintf_s(fb, L"移動: (%d,%d) -> (%d,%d)", m_heldBoardHex.q, m_heldBoardHex.r, cursorHex.q, cursorHex.r);
-							m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Success);
-							m_heldBoardHexValid = false;
-						}
-						else
-						{
-							m_shopUI.PushFeedback(L"移動できません (自陣 手前3行のみ / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
-						}
-					}
-				}
-				else if (haveCursor)
-				{
-					const UnitInstance* onCell = player.FindBoardUnitAt(cursorHex);
-					if (onCell != nullptr)
-					{
-						// カーソルが盤面ユニットを指している → 「移動元」として選択(拾う)。
-						handledByReposition = true;
-						m_heldBoardHex = cursorHex;
-						m_heldBoardHexValid = true;
-						m_heldBoardHexFromMouse = false; // ゲームパッドXボタンでの拾い上げ。
-
-						wchar_t fb[160];
-						swprintf_s(fb, L"移動元を選択: %hs  (移動先マスで[X] / [LB1]でベンチへ)", onCell->def->name.c_str());
-						m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
-					}
-					// カーソルが空きマス → handledByReposition = false のまま、下の従来配置ロジックへ。
-				}
-			}
-
-			if (!handledByReposition)
-			{
-				// --- 従来のベンチ → 盤面配置(挙動は変更しない) ---
-				int benchIndex = (focus == InputFocus::Bench) ? m_cursorSelection.GetListCursorIndex() : 0;
-				HexCoord targetHex(0, 0);
-				m_cursorSelection.GetHexCursor(targetHex); // 未選択ならデフォルトの(0,0)のまま。
-				bool success = player.PlaceUnitOnBoard(benchIndex, targetHex);
-
-				wchar_t buf[256];
-				swprintf_s(buf, L"Place result: %hs, Bench index: %d, Hex: (%d,%d), Bench count: %d, Board count: %d\n",
-					success ? "true" : "false", benchIndex, targetHex.q, targetHex.r, (int)player.bench.size(), (int)player.board.size());
-				OutputDebugString(buf);
-
-				if (success)
-				{
-					wchar_t fb[128];
-					swprintf_s(fb, L"配置: マス(%d,%d)  盤面 %d/%d", targetHex.q, targetHex.r, (int)player.board.size(), player.GetMaxBoardSize());
-					m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
-				}
-				else
-				{
-					m_shopUI.PushFeedback(L"配置できません (自陣 手前3行のみ / 盤面上限 / 空きマス無し)", ShopUIRenderer::FeedbackLevel::Failure);
-				}
-			}
-		}
-
-		// Startボタン(またはマウスで[Lock]ボタンをクリック)でショップのロックをトグルする。
-		// ロック中はラウンドを跨いでもショップの5枠が維持される(上の enButtonB での自動クリアをスキップ)。
-		// 手動リロール(Y)はロック中も可能で、その結果が新たなロック対象になる。
+		// [Lock]ボタンをクリックでショップのロックをトグルする。
+		// ロック中はラウンドを跨いでもショップの5枠が維持される(上の戦闘開始時の自動クリアをスキップ)。
+		// 手動リロールはロック中も可能で、その結果が新たなロック対象になる。
 		UIHotRegion lockClick;
 		bool mouseClickedLock = m_uiInteraction.GetLeftClicked(lockClick) && lockClick.kind == UIRegionKind::LockButton;
-		if (g_pad[0]->IsTrigger(enButtonStart) || mouseClickedLock)
+		if (mouseClickedLock)
 		{
 			m_shopLocked = !m_shopLocked;
 			m_shopUI.PushFeedback(
@@ -917,17 +664,16 @@ void Game::Update()
 			OutputDebugString(m_shopLocked ? L"[Shop] locked\n" : L"[Shop] unlocked\n");
 		}
 
-		// Yボタン(またはマウスで[Reroll]ボタンをクリック)で、ゴールドを払ってショップをリロールする。
+		// [Reroll]ボタンをクリックで、ゴールドを払ってショップをリロールする。
 		UIHotRegion rerollClick;
 		bool mouseClickedReroll = m_uiInteraction.GetLeftClicked(rerollClick) && rerollClick.kind == UIRegionKind::RerollButton;
-		if (g_pad[0]->IsTrigger(enButtonY) || mouseClickedReroll)
+		if (mouseClickedReroll)
 		{
 			Player& player = m_gameState.players[0];
-			const int kRerollCost = 2;
 
-			if (player.gold >= kRerollCost)
+			if (player.gold >= ShopSystem::kRerollCost)
 			{
-				player.gold -= kRerollCost;
+				player.gold -= ShopSystem::kRerollCost;
 				m_currentShop = m_shopSystem.RollShop(m_unitDatabase, player.level);
 
 				wchar_t headerBuf[256];
@@ -942,7 +688,7 @@ void Game::Update()
 				}
 
 				wchar_t fb[128];
-				swprintf_s(fb, L"リロール (-%dG)  所持 %dG", kRerollCost, player.gold);
+				swprintf_s(fb, L"リロール (-%dG)  所持 %dG", ShopSystem::kRerollCost, player.gold);
 				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
 			}
 			else
@@ -950,79 +696,16 @@ void Game::Update()
 				OutputDebugString(L"Not enough gold to reroll the shop.\n");
 
 				wchar_t fb[128];
-				swprintf_s(fb, L"ゴールド不足: リロールに %dG 必要 (所持 %dG)", kRerollCost, player.gold);
+				swprintf_s(fb, L"ゴールド不足: リロールに %dG 必要 (所持 %dG)", ShopSystem::kRerollCost, player.gold);
 				m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Failure);
 			}
 		}
 
-		// LB1ボタン。Boardフォーカス中は対象の盤面ユニット(移動元選択中ならそれ、無ければヘックス
-		// カーソル)をベンチへ戻す。それ以外はベンチフォーカス中はカーソル、他は0番目を売却する。
-		if (g_pad[0]->IsTrigger(enButtonLB1))
-		{
-			Player& player = m_gameState.players[0];
-			InputFocus focus = m_cursorSelection.GetFocus();
-
-			bool handledByReturn = false;
-			if (focus == InputFocus::Board)
-			{
-				HexCoord targetHex;
-				bool haveTarget = false;
-				if (m_heldBoardHexValid)
-				{
-					targetHex = m_heldBoardHex;
-					haveTarget = true;
-				}
-				else if (m_cursorSelection.GetHexCursor(targetHex))
-				{
-					haveTarget = true;
-				}
-
-				if (haveTarget && player.FindBoardUnitAt(targetHex) != nullptr)
-				{
-					handledByReturn = true;
-					bool ok = player.ReturnUnitToBench(targetHex);
-
-					wchar_t buf[192];
-					swprintf_s(buf, L"Return to bench result: %hs, hex (%d,%d), Bench count: %d, Board count: %d\n",
-						ok ? "true" : "false", targetHex.q, targetHex.r, (int)player.bench.size(), (int)player.board.size());
-					OutputDebugString(buf);
-
-					m_heldBoardHexValid = false;
-					m_shopUI.PushFeedback(
-						ok ? L"ベンチへ戻しました" : L"ベンチへ戻せません",
-						ok ? ShopUIRenderer::FeedbackLevel::Info : ShopUIRenderer::FeedbackLevel::Failure);
-				}
-			}
-
-			if (!handledByReturn)
-			{
-				// --- 従来のベンチユニット売却(挙動は変更しない) ---
-				int benchIndex = (focus == InputFocus::Bench) ? m_cursorSelection.GetListCursorIndex() : 0;
-				bool success = player.SellUnitFromBench(benchIndex);
-
-				wchar_t buf[256];
-				swprintf_s(buf, L"Sell result: %hs, Bench index: %d, Gold: %d, Bench count: %d\n",
-					success ? "true" : "false", benchIndex, player.gold, (int)player.bench.size());
-				OutputDebugString(buf);
-
-				if (success)
-				{
-					wchar_t fb[128];
-					swprintf_s(fb, L"売却  所持 %dG", player.gold);
-					m_shopUI.PushFeedback(fb, ShopUIRenderer::FeedbackLevel::Info);
-				}
-				else
-				{
-					m_shopUI.PushFeedback(L"売却できません (ベンチが空)", ShopUIRenderer::FeedbackLevel::Failure);
-				}
-			}
-		}
-
-		// RB1ボタン(またはマウスで[BuyXP]ボタンをクリック)で、ゴールドを払って経験値を購入する
+		// [BuyXP]ボタンをクリックで、ゴールドを払って経験値を購入する
 		// (LevelSystemの中でレベルアップ処理も行う)。
 		UIHotRegion buyXpClick;
 		bool mouseClickedBuyXp = m_uiInteraction.GetLeftClicked(buyXpClick) && buyXpClick.kind == UIRegionKind::BuyXpButton;
-		if (g_pad[0]->IsTrigger(enButtonRB1) || mouseClickedBuyXp)
+		if (mouseClickedBuyXp)
 		{
 			Player& player = m_gameState.players[0];
 			int levelBefore = player.level;
@@ -1148,12 +831,12 @@ void Game::Update()
 	}
 	else if (m_gameState.currentPhase == Phase::GameOver || m_gameState.currentPhase == Phase::Victory)
 	{
-		// ゲーム終了状態。Aボタン(またはマウスで"PRESS [A] TO TITLE"をクリック)でリスタート
+		// ゲーム終了状態。"CLICK TO TITLE"をクリックでリスタート
 		// (1プレイ分をリセットしてタイトルへ戻る)。
 		UIHotRegion restartClick;
 		bool mouseClickedRestart = m_uiInteraction.GetLeftClicked(restartClick) && restartClick.kind == UIRegionKind::RestartButton;
 
-		if (g_pad[0]->IsTrigger(enButtonA) || mouseClickedRestart)
+		if (mouseClickedRestart)
 		{
 			InitializeNewRun();
 			m_gameState.currentPhase = Phase::Title;
@@ -1178,46 +861,7 @@ void Game::Update()
 	// 蓄積しない)。docs/tasks/ui-mouse-cards/plan.md §3-1参照。
 	{
 		UIHotRegion hoverTarget;
-		bool haveHoverTarget = false;
-		bool isMouseHover = false;
-
-		UIHotRegion mouseHover;
-		if (m_uiInteraction.GetHovered(mouseHover))
-		{
-			hoverTarget = mouseHover;
-			haveHoverTarget = true;
-			isMouseHover = true;
-		}
-		else if (m_gameState.currentPhase == Phase::Preparation)
-		{
-			// マウスが何もホバーしていなければ、ゲームパッド/キーボードでフォーカス中の要素を
-			// m_hotRegionsから逆引きする(遅延無しで即表示、intent.md要求)。
-			InputFocus focus = m_cursorSelection.GetFocus();
-			UIRegionKind wantKind = UIRegionKind::ShopSlot;
-			int wantIndex = -1;
-			HexCoord wantHex;
-			bool wantByHex = false;
-
-			if (focus == InputFocus::Shop) { wantKind = UIRegionKind::ShopSlot; wantIndex = m_cursorSelection.GetListCursorIndex(); }
-			else if (focus == InputFocus::Bench) { wantKind = UIRegionKind::BenchUnit; wantIndex = m_cursorSelection.GetListCursorIndex(); }
-			else if (focus == InputFocus::Items) { wantKind = UIRegionKind::UnclaimedItem; wantIndex = m_cursorSelection.GetListCursorIndex(); }
-			else if (focus == InputFocus::Board) { wantByHex = true; m_cursorSelection.GetHexCursor(wantHex); }
-
-			for (const auto& region : m_hotRegions)
-			{
-				bool matched = wantByHex
-					? ((region.kind == UIRegionKind::BoardUnit || region.kind == UIRegionKind::BoardEmptyHex) && region.hex == wantHex)
-					: (region.kind == wantKind && region.index == wantIndex);
-				if (matched)
-				{
-					hoverTarget = region;
-					haveHoverTarget = true;
-					break;
-				}
-			}
-		}
-
-		if (haveHoverTarget)
+		if (m_uiInteraction.GetHovered(hoverTarget))
 		{
 			bool sameAsCandidate = (m_hoverCandidate.kind == hoverTarget.kind)
 				&& (m_hoverCandidate.index == hoverTarget.index)
@@ -1229,9 +873,8 @@ void Game::Update()
 			}
 			m_hoverTimer += g_gameTime->GetFrameDeltaTime();
 
-			// マウスホバーはkHoverDelaySec継続してから表示、ゲームパッド/キーボードのフォーカスは即表示。
-			bool show = !isMouseHover || (m_hoverTimer >= kHoverDelaySec);
-			if (show)
+			// マウスホバーがkHoverDelaySec継続してから表示する。
+			if (m_hoverTimer >= kHoverDelaySec)
 			{
 				Player& tooltipPlayer = m_gameState.players[0];
 				m_tooltipLines = TooltipContentBuilder::Build(hoverTarget, m_currentShop, tooltipPlayer, m_gameState,
@@ -1239,17 +882,8 @@ void Game::Update()
 					m_unitDatabase, m_itemDatabase, m_traitDatabase, m_traitSystem);
 				m_tooltipVisible = !m_tooltipLines.empty();
 
-				if (isMouseHover)
-				{
-					Vector2 mouseUI;
-					m_tooltipAnchor = CursorSelectionSystem::ScreenToUISpace(mouseUI) ? mouseUI : Vector2(hoverTarget.maxX, hoverTarget.maxY);
-				}
-				else
-				{
-					// ゲームパッド/キーボード操作時は、対象要素の右上あたりを基準点にする
-					// (マウスカーソルの実位置は操作と無関係なため使わない)。
-					m_tooltipAnchor = Vector2(hoverTarget.maxX, hoverTarget.maxY);
-				}
+				Vector2 mouseUI;
+				m_tooltipAnchor = CursorSelectionSystem::ScreenToUISpace(mouseUI) ? mouseUI : Vector2(hoverTarget.maxX, hoverTarget.maxY);
 			}
 			else
 			{
@@ -1496,7 +1130,7 @@ void Game::Render(RenderContext& rc)
 	m_uiRectRenderer.BeginFrame();
 
 	// タイトル画面中は盤面・各種HUDを一切出さず、タイトル文字列のみを表示する
-	// (ただしツールチップ(フェーズ2)は"PRESS [A] TO START"等のボタンに対して出したいため、
+	// (ただしツールチップ(フェーズ2)は"CLICK TO START"等のボタンに対して出したいため、
 	// 早期returnの前に描画する)。
 	if (m_gameState.currentPhase == Phase::Title)
 	{
@@ -1536,9 +1170,6 @@ void Game::Render(RenderContext& rc)
 	if (m_gameState.currentPhase == Phase::Preparation)
 	{
 		const Player& player = m_gameState.players[0];
-		bool shopFocused = m_cursorSelection.GetFocus() == InputFocus::Shop;
-		int shopCursorIndex = m_cursorSelection.GetListCursorIndex();
-		const int kRerollCost = 2; // Game::Update()のYボタン処理と同じ値。
 
 		// マウスホバー中の領域を1回だけ解決し、各カードのハイライトに使う
 		// (ui-mouse-cardsフェーズ3、plan.md §4-2「ホバー中枠(フェーズ2のホバー状態を流用)」)。
@@ -1554,23 +1185,17 @@ void Game::Render(RenderContext& rc)
 			m_currentShop,
 			player,
 			m_levelSystem.XPForNextLevel(player.level),
-			kRerollCost,
+			ShopSystem::kRerollCost,
 			LevelSystem::kBuyXPCost,
-			shopFocused ? shopCursorIndex : -1,
-			shopFocused,
 			m_shopLocked,
 			hoveredIndexFor(UIRegionKind::ShopSlot),
 			m_uiRectRenderer);
 
-		bool benchFocused = m_cursorSelection.GetFocus() == InputFocus::Bench;
-		m_boardUI.DrawPreparation(rc, player, benchFocused,
-			benchFocused ? m_cursorSelection.GetListCursorIndex() : -1,
+		m_boardUI.DrawPreparation(rc, player,
 			hoveredIndexFor(UIRegionKind::BenchUnit), m_uiRectRenderer);
 
-		// 未装備アイテム一覧(画面右側)。Itemsフォーカス中のみカーソル位置を渡して強調する。
-		bool itemsFocused = m_cursorSelection.GetFocus() == InputFocus::Items;
-		m_itemInventoryUI.Draw(rc, player, itemsFocused,
-			itemsFocused ? m_cursorSelection.GetListCursorIndex() : -1, m_heldUnclaimedIndex,
+		// 未装備アイテム一覧(画面右側)。手に持っているアイテムとホバー中のアイテムを強調する。
+		m_itemInventoryUI.Draw(rc, player, m_heldUnclaimedIndex,
 			hoveredIndexFor(UIRegionKind::UnclaimedItem), m_uiRectRenderer);
 
 		// 全トレイトの発動状況(画面左側、BENCH一覧の下)。

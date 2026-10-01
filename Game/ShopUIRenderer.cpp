@@ -99,8 +99,6 @@ void ShopUIRenderer::Draw(
 	int xpForNextLevel,
 	int rerollCost,
 	int buyXpCost,
-	int shopCursorIndex,
-	bool shopFocused,
 	bool shopLocked,
 	int hoveredIndex,
 	UIRectRenderer& rectRenderer)
@@ -148,8 +146,6 @@ void ShopUIRenderer::Draw(
 	m_xpForNextLevel = xpForNextLevel;
 	m_rerollCost = rerollCost;
 	m_buyXpCost = buyXpCost;
-	m_cursorIndex = shopCursorIndex;
-	m_shopFocused = shopFocused;
 	m_shopLocked = shopLocked;
 	m_hasData = !m_slots.empty();
 
@@ -203,7 +199,7 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 			UIStyle::kSelectedBorderColor, UIStyle::kSelectedBorderThickness, kCenterPivot);
 
 		// ショップ5枠のカード(ui-mouse-cardsフェーズ3、plan.md §4-2)。枠色はコストティア色、
-		// 選択中(キーボード/パッド)は太く金色、ホバー中(マウス)は水色でハイライトする。
+		// ホバー中(マウス)は水色でハイライトする。
 		for (size_t i = 0; i < m_slots.size(); ++i)
 		{
 			float slotX = kSlotStartX + kSlotStepX * (float)i;
@@ -218,13 +214,10 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 				continue;
 			}
 
-			bool selected = m_shopFocused && ((int)i == m_cursorIndex);
 			bool hovered = ((int)i == m_hoveredIndex);
-			Vector4 borderColor = selected ? UIStyle::kSelectedBorderColor
-				: hovered ? UIStyle::kHoveredBorderColor : CostTierColor(m_slots[i].cost);
-			float borderThickness = selected ? UIStyle::kSelectedBorderThickness : UIStyle::kPanelBorderThickness;
+			Vector4 borderColor = hovered ? UIStyle::kHoveredBorderColor : CostTierColor(m_slots[i].cost);
 
-			m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor, borderColor, borderThickness, kCenterPivot);
+			m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor, borderColor, UIStyle::kPanelBorderThickness, kCenterPivot);
 		}
 	}
 
@@ -281,8 +274,8 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 
 		drawLabel(2, m_shopLocked ? L"Locked" : L"Lock");
 
-		// 戦闘開始ボタンのラベル(ゲームパッドのBボタンにも対応することを併記する)。
-		const wchar_t* battleLabel = L"戦闘開始 [B]";
+		// 戦闘開始ボタンのラベル。
+		const wchar_t* battleLabel = L"戦闘開始";
 		float battleLabelWidth = UITextUtil::EstimateTextWidth(battleLabel, kBattleButtonLabelScale);
 		Vector2 battleLabelPos(kBattleButtonCenterX - battleLabelWidth * 0.5f, kBattleButtonCenterY + kBattleButtonLabelYOffset);
 		m_font.Draw(battleLabel, battleLabelPos, kBattleButtonLabelColor, 0.0f, kBattleButtonLabelScale, kTopLeftPivot);
@@ -296,21 +289,20 @@ void ShopUIRenderer::OnRender2D(RenderContext& rc)
 
 		float slotX = kSlotStartX + kSlotStepX * (float)i;
 
-		bool selected = m_shopFocused && ((int)i == m_cursorIndex);
+		bool hovered = ((int)i == m_hoveredIndex);
 
 		Vector4 nameColor = CostTierColor(slot.cost);
-		if (!selected)
+		if (!hovered)
 		{
-			// 選択されていない枠は少し暗く落とす。
+			// マウスが乗っていない枠は少し暗く落とす。
 			nameColor.x *= 0.78f;
 			nameColor.y *= 0.78f;
 			nameColor.z *= 0.78f;
 		}
 
 		wchar_t nameLine[80];
-		swprintf_s(nameLine, L"%ls%ls", selected ? L"> " : L"  ", slot.name.c_str());
-		m_font.Draw(nameLine, Vector2(slotX, kNameY), nameColor, 0.0f,
-			selected ? kNameScale * 1.08f : kNameScale, kTopLeftPivot);
+		swprintf_s(nameLine, L"  %ls", slot.name.c_str());
+		m_font.Draw(nameLine, Vector2(slotX, kNameY), nameColor, 0.0f, kNameScale, kTopLeftPivot);
 
 		wchar_t detailLine[128];
 		swprintf_s(detailLine, L"  C%d  HP%d AT%d  %ls",

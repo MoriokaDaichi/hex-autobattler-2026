@@ -17,8 +17,8 @@ public:
 	/// 内部で経過時間を積算する。
 	/// </summary>
 	/// <param name="hasSaveData">
-	/// セーブデータが存在するか。true なら「[A] CONTINUE / [X] NEW GAME」、false なら
-	/// 「PRESS [A] TO START」を表示する。
+	/// セーブデータが存在するか。true なら「CONTINUE / NEW GAME」、false なら
+	/// 「CLICK TO START」を表示する。
 	/// </param>
 	void Draw(RenderContext& rc, float deltaTime, bool hasSaveData);
 

@@ -33,7 +33,7 @@ public:
 	/// <summary>
 	/// CalcTileCenterの逆変換。ワールド座標(y成分は無視し、xz平面上の位置として扱う)から
 	/// 最も近いマスのaxial座標を求める。盤面の範囲外だった場合はfalseを返す。
-	/// マウスピッキングによるヘックスカーソル(CursorSelectionSystem)から利用する。
+	/// (以前はヘックスカーソルのマウスピッキングで使っていた。現在は呼び出し元無し、汎用APIとして残している。)
 	/// </summary>
 	static bool TryWorldPositionToHex(const Vector3& worldPos, HexCoord& outHex);
 

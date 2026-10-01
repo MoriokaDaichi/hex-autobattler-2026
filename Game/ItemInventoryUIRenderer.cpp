@@ -35,7 +35,6 @@ namespace
 
 	const Vector4 kTitleColor(0.9f, 0.9f, 0.95f, 1.0f);
 	const Vector4 kNormalColor(0.80f, 0.83f, 0.88f, 1.0f);
-	const Vector4 kSelectedColor(1.0f, 0.92f, 0.55f, 1.0f);  // カーソルが当たっている枠。
 	const Vector4 kHeldColor(0.55f, 1.0f, 0.65f, 1.0f);      // 手に持っている枠。
 	const Vector4 kEmptyColor(0.6f, 0.62f, 0.66f, 1.0f);
 
@@ -61,7 +60,7 @@ namespace
 	}
 }
 
-void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, bool focused, int cursorIndex, int heldIndex, int hoveredIndex, UIRectRenderer& rectRenderer)
+void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, int heldIndex, int hoveredIndex, UIRectRenderer& rectRenderer)
 {
 	m_items.clear();
 	m_items.reserve(player.unclaimedItems.size());
@@ -77,8 +76,6 @@ void ItemInventoryUIRenderer::Draw(RenderContext& rc, const Player& player, bool
 		m_items.push_back(std::move(view));
 	}
 
-	m_focused = focused;
-	m_cursorIndex = cursorIndex;
 	m_heldIndex = heldIndex;
 	m_hoveredIndex = hoveredIndex;
 	m_rectRenderer = &rectRenderer;
@@ -118,23 +115,21 @@ void ItemInventoryUIRenderer::OnRender2D(RenderContext& rc)
 			float y = kTopY - kStepY * (float)(i + 1);
 
 			bool held = ((int)i == m_heldIndex);
-			bool selected = m_focused && ((int)i == m_cursorIndex);
 			bool hovered = ((int)i == m_hoveredIndex);
 
 			// 実際に描く行文字列("%ls%ls  %ls" = marker + name + effects)と同じ内容・同じスケールで
 			// 幅を見積もり、カードをそれに追従させる。
-			const wchar_t* marker = held ? L"[持] " : (selected ? L"> " : L"  ");
+			const wchar_t* marker = held ? L"[持] " : L"  ";
 			std::wstring probe = marker; probe += m_items[i].name; probe += L"  "; probe += m_items[i].effects;
-			float drawScale = selected ? kItemScale * 1.08f : kItemScale;
+			float drawScale = kItemScale;
 			float cardWidth = UITextUtil::EstimateTextWidth(probe, drawScale) + kCardLeftPad + kCardRightPad;
 			if (cardWidth < kCardMinWidth) cardWidth = kCardMinWidth;
 
 			Vector2 cardCenter(kX - kCardLeftPad + cardWidth * 0.5f, y - kStepY * 0.5f + 6.0f);
 			Vector2 cardSize(cardWidth, kStepY - 4.0f);
 			Vector4 borderColor = held ? kHeldColor
-				: selected ? UIStyle::kSelectedBorderColor
 				: hovered ? UIStyle::kHoveredBorderColor : UIStyle::kPanelBorderColor;
-			float borderThickness = (held || selected) ? UIStyle::kSelectedBorderThickness : UIStyle::kPanelBorderThickness;
+			float borderThickness = held ? UIStyle::kSelectedBorderThickness : UIStyle::kPanelBorderThickness;
 
 			m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor, borderColor, borderThickness, kCenterPivot);
 		}
@@ -144,7 +139,7 @@ void ItemInventoryUIRenderer::OnRender2D(RenderContext& rc)
 	m_font.Begin(rc);
 
 	wchar_t title[64];
-	swprintf_s(title, L"ITEMS (%d)%ls", (int)m_items.size(), m_focused ? L"  [Tab]" : L"");
+	swprintf_s(title, L"ITEMS (%d)", (int)m_items.size());
 	m_font.Draw(title, Vector2(kX, kTopY), kTitleColor, 0.0f, kTitleScale, kTopLeftPivot);
 
 	if (m_items.empty())
@@ -159,25 +154,23 @@ void ItemInventoryUIRenderer::OnRender2D(RenderContext& rc)
 		float y = kTopY - kStepY * (float)(i + 1);
 
 		bool held = ((int)i == m_heldIndex);
-		bool selected = m_focused && ((int)i == m_cursorIndex);
 
 		Vector4 color = kNormalColor;
 		if (held) color = kHeldColor;
-		else if (selected) color = kSelectedColor;
 
-		const wchar_t* marker = held ? L"[持] " : (selected ? L"> " : L"  ");
+		const wchar_t* marker = held ? L"[持] " : L"  ";
 
 		wchar_t line[128];
 		swprintf_s(line, L"%ls%ls  %ls", marker, m_items[i].name.c_str(), m_items[i].effects.c_str());
 		m_font.Draw(line, Vector2(kX, y), color, 0.0f,
-			selected ? kItemScale * 1.08f : kItemScale, kTopLeftPivot);
+			kItemScale, kTopLeftPivot);
 	}
 
 	// 操作ガイド(手に持っているときだけ表示)。
 	if (m_heldIndex >= 0)
 	{
 		float y = kTopY - kStepY * (float)(m_items.size() + 1);
-		m_font.Draw(L"  ベンチ/盤面のユニットを選び [A] で装備", Vector2(kX, y),
+		m_font.Draw(L"  ベンチ/盤面のユニットをクリックで装備", Vector2(kX, y),
 			Vector4(0.75f, 0.85f, 1.0f, 1.0f), 0.0f, kItemScale * 0.92f, kTopLeftPivot);
 	}
 

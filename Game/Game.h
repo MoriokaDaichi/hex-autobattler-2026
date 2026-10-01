@@ -100,7 +100,6 @@ private:
 	TitleUIRenderer m_titleUI; // タイトル画面(Phase::Title)のタイトル文字列・スタート操作ガイドを2D表示する。
 	ResultUIRenderer m_resultUI; // ラウンド結果一言・ゲームオーバー/ゲームクリア画面を2D表示する。
 	UIRectRenderer m_uiRectRenderer; // 単色矩形(HPバー・XPバー・スキルゲージバー・暗幕)を描く共通ヘルパー。
-	CursorSelectionSystem m_cursorSelection; // マウス・キーボード・ゲームパッドを横断するカーソル/選択状態。
 	SaveSystem m_saveSystem; // 準備フェーズの進行状況(GameState)をテキストファイルへ保存/復元する。
 
 	// マウス操作基盤(ui-mouse-cards フェーズ1)。毎フレームUpdate()の先頭で、各UI Rendererの
@@ -109,8 +108,8 @@ private:
 	UIHotRegionList m_hotRegions;
 	UIInteractionSystem m_uiInteraction; // 上記からホバー/クリックを解決する。
 
-	// ツールチップ(ui-mouse-cards フェーズ2)。マウスホバー(kHoverDelaySec継続)、または
-	// ゲームパッド/キーボードでフォーカス中の要素(遅延無し)の詳細をカーソル付近にカード表示する
+	// ツールチップ(ui-mouse-cards フェーズ2)。マウスホバー(kHoverDelaySec継続)中の要素の
+	// 詳細をカーソル付近にカード表示する
 	// (docs/tasks/ui-mouse-cards/plan.md §3-1)。内容はGame::Update()末尾でTooltipContentBuilderに
 	// より毎フレーム組み立て、Game::Render()でm_tooltipUI.Draw()へ渡す。
 	TooltipUIRenderer m_tooltipUI;
@@ -122,38 +121,33 @@ private:
 	static constexpr float kHoverDelaySec = 0.3f; // マウスホバーでツールチップが出るまでの継続時間。
 
 	// ヘルプボタン(画面左上)とカテゴリ別の説明パネル(help-panel)。全フェーズで開閉できる。開いている間は
-	// ヒット領域がヘルプ用だけに差し替わり、タイトル/準備/終了画面のパッド入力も止まる(戦闘・結果は止めない)。
+	// ヒット領域がヘルプ用だけに差し替わり、タイトル/準備/終了画面の入力処理も止まる(戦闘・結果は止めない)。
 	// docs/tasks/help-panel/plan.md参照。
 	HelpUIRenderer m_helpUI;
 
 	// マウス操作専用: ベンチのユニットを左クリックで「掴んだ」状態。盤面の空きマスを左クリックすると
-	// Player::PlaceUnitOnBoard()を呼んで確定する(ゲームパッドXボタンの配置ロジックを流用、新しい
-	// 配置ルールは増やさない)。右クリックでキャンセル。フォーカス変更・戦闘突入で解除する
+	// Player::PlaceUnitOnBoard()を呼んで確定する(新しい配置ルールは増やさない)。
+	// 右クリックでキャンセル。ドラッグ終了・戦闘突入で解除する
 	// (m_heldUnclaimedIndex/m_heldBoardHexValidと同じ寿命の考え方)。
 	int m_mouseHeldBenchIndex = -1;
 
 	// マウス右クリックでの売却/ベンチ戻しの2段階確認用。1回目の右クリックで「確認待ち」にし、
 	// kSellConfirmWindowSec以内に同じ対象へもう一度右クリックすると確定する。タイムアウト・
-	// 別対象へのクリック・フォーカス変更で自動的に解除する(docs/tasks/ui-mouse-cards/plan.md §2-4)。
+	// 別対象への右クリック・持ち物のキャンセルで自動的に解除する(docs/tasks/ui-mouse-cards/plan.md §2-4)。
 	UIHotRegion m_pendingSellTarget;
 	bool m_hasPendingSellTarget = false;
 	float m_sellConfirmTimer = 0.0f;
 	static constexpr float kSellConfirmWindowSec = 3.0f; // ShopUIRendererのkFeedbackDurationと合わせる。
 
 	// 準備フェーズで「手に持っている」未装備アイテムの、players[0].unclaimedItems上のindex(-1で無し)。
-	// Itemsフォーカス中にAで持ち、Bench/Boardのユニットを選んでAで装備確定するまでの一時状態。
+	// アイテムをクリックで持ち、Bench/Boardのユニットをクリックで装備確定するまでの一時状態。
 	int m_heldUnclaimedIndex = -1;
 
 	// 準備フェーズ、盤面内再配置で「移動元」として選択中の盤面マス。
-	// Boardフォーカス中にXで盤面ユニットを指すとセットされ、移動先マスでX(移動確定)/
-	// LB1(ベンチへ戻す)/同じマスでX(キャンセル)/フォーカスがBoardから外れる・戦闘突入で解除。
+	// 盤面ユニットをクリックするとセットされ、移動先の空きマスをクリック(移動確定)/
+	// 同じマスをクリック(キャンセル)/右クリック・ドラッグ終了・戦闘突入で解除。
 	HexCoord m_heldBoardHex;
 	bool m_heldBoardHexValid = false;
-	// trueなら上記の選択がマウスクリックで拾われたもの(ui-mouse-cardsフェーズ1)。マウス操作は
-	// m_cursorSelectionの focus を変更しない(Tab操作をしないため)ので、「focusがBoardでなくなったら
-	// 解除する」既存の掃除ロジックをマウス発の選択には適用しない(適用すると拾った直後の
-	// フレームで即座に解除されてしまう)。ゲームパッド発の選択(false)には従来通り適用される。
-	bool m_heldBoardHexFromMouse = false;
 
 	// 準備フェーズのマウスドラッグ&ドロップ(drag-and-drop)。既存のクリック操作に追加する形で、
 	// 押下→閾値以上移動→離した場所で配置/移動/入れ替え/ベンチ戻し/売却/装備を確定する。

@@ -20,7 +20,7 @@ class ItemDatabase;
 ///  1. Update()でヒット領域を作り終えた直後(m_uiInteraction.Update()の直前)にBuildHotRegions()。
 ///     パネル表示中はリストをクリアしてヘルプ用の領域だけにする(=盤面等はクリック/ホバーされない)。
 ///  2. m_uiInteraction.Update()の直後にUpdateInput()。開閉・カテゴリ/ページ切り替えを処理する。
-///  3. IsOpen()(と、UpdateInput()前の状態)を見て、タイトル/準備/終了画面のパッド入力処理をスキップする。
+///  3. IsOpen()(と、UpdateInput()前の状態)を見て、タイトル/準備/終了画面の入力処理をスキップする。
 ///  4. Render()の最後(ツールチップより後)にDraw()。最前面に描かれる。
 /// </summary>
 class HelpUIRenderer : public IRenderer, public Noncopyable
@@ -44,7 +44,7 @@ public:
 
 	/// <summary>
 	/// 開閉・カテゴリ/ページ切り替えの入力を処理する。m_uiInteraction.Update()の直後に毎フレーム呼ぶ。
-	/// マウス(ヘルプ用ヒット領域のクリック)、キーボード(F1/H/Esc/矢印)、パッド(LT/B/十字キー)。
+	/// マウス(ヘルプ用ヒット領域のクリック)、キーボード(F1/H/Esc/矢印)。
 	/// </summary>
 	void UpdateInput(const UIInteractionSystem& uiInteraction);
 

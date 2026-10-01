@@ -105,7 +105,7 @@ bool BoardUIRenderer::WorldToUI(const Vector3& world, Vector2& outUI)
 	return true;
 }
 
-void BoardUIRenderer::DrawPreparation(RenderContext& rc, const Player& player, bool benchFocused, int benchCursorIndex, int hoveredIndex, UIRectRenderer& rectRenderer)
+void BoardUIRenderer::DrawPreparation(RenderContext& rc, const Player& player, int hoveredIndex, UIRectRenderer& rectRenderer)
 {
 	m_bench.clear();
 	// kBenchMaxVisibleRows件まで個別表示し、それを超える分は末尾の集約行にまとめる
@@ -137,8 +137,6 @@ void BoardUIRenderer::DrawPreparation(RenderContext& rc, const Player& player, b
 		m_bench.push_back(std::move(bv));
 	}
 
-	m_benchFocused = benchFocused;
-	m_benchCursorIndex = benchCursorIndex;
 	m_benchHoveredIndex = hoveredIndex;
 	m_rectRenderer = &rectRenderer;
 	m_mode = Mode::Preparation;
@@ -379,11 +377,9 @@ void BoardUIRenderer::OnRender2D(RenderContext& rc)
 			Vector2 cardCenter(kBenchX + 130.0f, y - kBenchStepY * 0.5f + 6.0f);
 			Vector2 cardSize(268.0f, kBenchStepY - 4.0f);
 
-			bool selected = m_benchFocused && ((int)i == m_benchCursorIndex);
 			bool hovered = ((int)i == m_benchHoveredIndex);
-			Vector4 borderColor = selected ? UIStyle::kSelectedBorderColor
-				: hovered ? UIStyle::kHoveredBorderColor : UIStyle::kPanelBorderColor;
-			float borderThickness = selected ? UIStyle::kSelectedBorderThickness : UIStyle::kPanelBorderThickness;
+			Vector4 borderColor = hovered ? UIStyle::kHoveredBorderColor : UIStyle::kPanelBorderColor;
+			float borderThickness = UIStyle::kPanelBorderThickness;
 
 			m_rectRenderer->DrawPanel(rc, cardCenter, cardSize, UIStyle::kPanelFillColor, borderColor, borderThickness, kCenterPivot);
 		}

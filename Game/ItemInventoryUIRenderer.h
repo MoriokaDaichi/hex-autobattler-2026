@@ -15,7 +15,7 @@ class UIRectRenderer;
 /// (アイテムの装備操作は準備フェーズでのみ行うため)。
 ///
 /// FontEngineの制約に合わせ、pivotによる中央揃え・color.wによるフェードは使わず、
-/// 選択枠は "> " マーカーと色/スケール差で、手に持っている枠は "[持] " マーカーで表現する。
+/// 手に持っている枠は "[持] " マーカーと色で表現する(ホバー中はカード枠を水色にする)。
 /// </summary>
 class ItemInventoryUIRenderer : public IRenderer, public Noncopyable
 {
@@ -24,12 +24,10 @@ public:
 	/// 準備フェーズ中、毎フレームGame::Render()から呼ぶ。表示に必要な現在値をコピーして保持し、
 	/// 2D描画パスへの登録(AddRenderObject)を行う。
 	/// </summary>
-	/// <param name="focused">今カーソルのフォーカスがアイテム一覧に当たっているか。</param>
-	/// <param name="cursorIndex">アイテム一覧上のカーソル位置(CursorSelectionSystem由来)。</param>
 	/// <param name="heldIndex">「手に持っている」アイテムのindex(-1で無し)。装備先ユニット選択待ちの状態。</param>
 	/// <param name="hoveredIndex">マウスホバー中のアイテムindex(無ければ-1)。カード枠のハイライトに使う。</param>
 	/// <param name="rectRenderer">カード背景の塗り矩形を描く共通ヘルパー。OnRender2D用に保持する。</param>
-	void Draw(RenderContext& rc, const Player& player, bool focused, int cursorIndex, int heldIndex, int hoveredIndex, UIRectRenderer& rectRenderer);
+	void Draw(RenderContext& rc, const Player& player, int heldIndex, int hoveredIndex, UIRectRenderer& rectRenderer);
 
 	/// <summary>
 	/// 現フレームの未装備アイテム一覧のクリック可能矩形をoutへ追加する。描画を伴わない純粋関数。
@@ -51,8 +49,6 @@ private:
 	Font m_font;
 
 	std::vector<ItemView> m_items;
-	bool m_focused = false;
-	int m_cursorIndex = -1;
 	int m_heldIndex = -1;
 	int m_hoveredIndex = -1;
 	UIRectRenderer* m_rectRenderer = nullptr; // Draw()で渡されたものをOnRender2D用に保持する。

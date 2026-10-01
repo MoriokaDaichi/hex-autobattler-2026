@@ -39,10 +39,11 @@ namespace
 
 	const wchar_t* kGameOverText = L"GAME OVER";
 	const wchar_t* kVictoryText = L"VICTORY!";
-	const wchar_t* kPromptText = L"PRESS [A] TO TITLE";
+	const wchar_t* kPromptText = L"CLICK TO TITLE";
+	const int kPromptCharCount = 14; // kPromptTextの半角文字数(中央揃え・クリック矩形の幅の概算に使う)。
 
 	// アルファブレンドが機能しないため、一定間隔で描画自体をON/OFFして点滅を表現する
-	// (TitleUIRendererのPRESS [A] TO STARTと同じ方式)。
+	// (TitleUIRendererのCLICK TO STARTと同じ方式)。
 	const float kBlinkIntervalSec = 0.5f;
 
 	// --- GameOver/Victory背景の暗幕 ---
@@ -84,11 +85,11 @@ void ResultUIRenderer::BuildHotRegions(bool isGameOverOrVictory, UIHotRegionList
 {
 	if (!isGameOverOrVictory) return;
 
-	// "PRESS [A] TO TITLE"(半角19文字、kPromptScale)。MeasureString相当が無いため、
+	// "CLICK TO TITLE"(半角kPromptCharCount文字、kPromptScale)。MeasureString相当が無いため、
 	// CenteredStartX()と同じ概算(1文字あたり23px)で幅を見積もる(実機で要微調整)。
 	const float kApproxCharWidth = 23.0f;
-	float width = 19.0f * kApproxCharWidth * kPromptScale;
-	float startX = CenteredStartX(19, kPromptScale);
+	float width = (float)kPromptCharCount * kApproxCharWidth * kPromptScale;
+	float startX = CenteredStartX(kPromptCharCount, kPromptScale);
 
 	UIHotRegion region;
 	region.kind = UIRegionKind::RestartButton;
@@ -157,7 +158,7 @@ void ResultUIRenderer::OnRender2D(RenderContext& rc)
 		bool showPrompt = (blinkPhase % 2) == 0;
 		if (showPrompt)
 		{
-			float promptX = CenteredStartX(19, kPromptScale); // "PRESS [A] TO TITLE" (半角19文字)。
+			float promptX = CenteredStartX(kPromptCharCount, kPromptScale);
 			m_font.Draw(kPromptText, Vector2(promptX, kPromptY), kPromptColor, 0.0f, kPromptScale, kTopLeftPivot);
 		}
 	}

@@ -20,13 +20,13 @@ namespace
 
 	const float kPromptY = -120.0f;
 	const float kPromptScale = 0.66f;
-	const float kPromptStartX = -135.0f;      // "PRESS [A] TO START"がこのスケールで中央付近に来るよう調整した値。
-	const float kPromptStartXSave = -250.0f;  // "[A] CONTINUE    [X] NEW GAME"用(文言が長いぶん左寄りにする)。
+	const float kPromptStartX = -105.0f;      // "CLICK TO START"がこのスケールで中央付近に来るよう調整した値(半角1文字≒15px)。
+	const float kPromptStartXSave = -158.0f;  // "CONTINUE     NEW GAME"用(文言が長いぶん左寄りにする)。
 
 	// タイトル名は"HEX ARENA"に正式決定済み(2026-08-30、ユーザー確認済み)。
 	const wchar_t* kTitleText = L"HEX ARENA";
-	const wchar_t* kPromptText = L"PRESS [A] TO START";
-	const wchar_t* kPromptTextSave = L"[A] CONTINUE     [X] NEW GAME"; // セーブデータがある場合。
+	const wchar_t* kPromptText = L"CLICK TO START";
+	const wchar_t* kPromptTextSave = L"CONTINUE     NEW GAME"; // セーブデータがある場合。
 
 	// このFontEngineの描画パイプラインはアルファブレンドが機能しない(常に不透明)ため、
 	// アルファ値でのフェードではなく、一定間隔で描画そのものをスキップする方式で点滅させる。
@@ -50,22 +50,22 @@ void TitleUIRenderer::BuildHotRegions(bool hasSaveData, UIHotRegionList& out) co
 
 	if (!hasSaveData)
 	{
-		// "PRESS [A] TO START" 1つだけ。
+		// "CLICK TO START" 1つだけ。
 		UIHotRegion region;
 		region.kind = UIRegionKind::TitleStartButton;
 		region.minX = kPromptStartX - 6.0f;
-		region.maxX = kPromptStartX + 270.0f;
+		region.maxX = kPromptStartX + 216.0f;
 		region.minY = kMinY;
 		region.maxY = kMaxY;
 		out.push_back(region);
 	}
 	else
 	{
-		// "[A] CONTINUE     [X] NEW GAME" を左右2つに分ける。
+		// "CONTINUE     NEW GAME" を左右2つに分ける(間の空白の中央で区切る)。
 		UIHotRegion continueRegion;
-		continueRegion.kind = UIRegionKind::TitleStartButton; // 続きから(セーブ有り時のA相当)。
+		continueRegion.kind = UIRegionKind::TitleStartButton; // 続きから。
 		continueRegion.minX = kPromptStartXSave - 6.0f;
-		continueRegion.maxX = kPromptStartXSave + 220.0f;
+		continueRegion.maxX = kPromptStartXSave + 157.0f;
 		continueRegion.minY = kMinY;
 		continueRegion.maxY = kMaxY;
 		out.push_back(continueRegion);
@@ -73,7 +73,7 @@ void TitleUIRenderer::BuildHotRegions(bool hasSaveData, UIHotRegionList& out) co
 		UIHotRegion newGameRegion;
 		newGameRegion.kind = UIRegionKind::TitleNewGameButton;
 		newGameRegion.minX = continueRegion.maxX;
-		newGameRegion.maxX = continueRegion.maxX + 200.0f;
+		newGameRegion.maxX = kPromptStartXSave + 321.0f;
 		newGameRegion.minY = kMinY;
 		newGameRegion.maxY = kMaxY;
 		out.push_back(newGameRegion);

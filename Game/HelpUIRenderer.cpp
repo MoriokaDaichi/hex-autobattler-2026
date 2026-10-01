@@ -36,7 +36,7 @@ namespace
 	const float kTitleScale = 0.8f;
 	const Vector2 kHintPos(-520.0f, 414.0f);
 	const float kHintScale = 0.42f;
-	const wchar_t* const kHintText = L"上下: 項目   左右: ページ   Esc / B / F1: 閉じる";
+	const wchar_t* const kHintText = L"上下: 項目   左右: ページ   Esc / F1 / H: 閉じる";
 
 	// 閉じるボタン(右上)
 	const Vector2 kCloseButtonCenter(620.0f, 400.0f);
@@ -280,8 +280,8 @@ void HelpUIRenderer::UpdateInput(const UIInteractionSystem& uiInteraction)
 	UIHotRegion clicked;
 	bool hasClick = uiInteraction.GetLeftClicked(clicked);
 
-	// 開閉キー: F1 / H / パッドLT(パッド未接続時はGamePadのキーボード代替で'N')。
-	bool toggleKey = g_keyboard->IsTrigger(VK_F1) || g_keyboard->IsTrigger('H') || g_pad[0]->IsTrigger(enButtonLB2);
+	// 開閉キー: F1 / H(キーボードを直接読む)。
+	bool toggleKey = g_keyboard->IsTrigger(VK_F1) || g_keyboard->IsTrigger('H');
 
 	if (!m_open)
 	{
@@ -293,7 +293,7 @@ void HelpUIRenderer::UpdateInput(const UIInteractionSystem& uiInteraction)
 	}
 
 	// --- 以下、パネル表示中 ---
-	bool closeKey = toggleKey || g_keyboard->IsTrigger(VK_ESCAPE) || g_pad[0]->IsTrigger(enButtonB);
+	bool closeKey = toggleKey || g_keyboard->IsTrigger(VK_ESCAPE);
 	if (closeKey)
 	{
 		m_open = false;
@@ -322,20 +322,20 @@ void HelpUIRenderer::UpdateInput(const UIInteractionSystem& uiInteraction)
 		}
 	}
 
-	// 上下: カテゴリ、左右: ページ。キーボード矢印とパッド十字キー(未接続時はテンキー代替)の両方。
-	if (g_keyboard->IsTrigger(VK_UP) || g_pad[0]->IsTrigger(enButtonUp))
+	// 上下: カテゴリ、左右: ページ(キーボードの矢印キー)。
+	if (g_keyboard->IsTrigger(VK_UP))
 	{
 		SetCategory(m_category - 1);
 	}
-	else if (g_keyboard->IsTrigger(VK_DOWN) || g_pad[0]->IsTrigger(enButtonDown))
+	else if (g_keyboard->IsTrigger(VK_DOWN))
 	{
 		SetCategory(m_category + 1);
 	}
-	if (g_keyboard->IsTrigger(VK_LEFT) || g_pad[0]->IsTrigger(enButtonLeft))
+	if (g_keyboard->IsTrigger(VK_LEFT))
 	{
 		ChangePage(-1);
 	}
-	else if (g_keyboard->IsTrigger(VK_RIGHT) || g_pad[0]->IsTrigger(enButtonRight))
+	else if (g_keyboard->IsTrigger(VK_RIGHT))
 	{
 		ChangePage(+1);
 	}

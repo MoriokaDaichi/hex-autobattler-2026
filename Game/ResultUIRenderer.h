@@ -47,7 +47,7 @@ public:
 	void DrawVictory(RenderContext& rc, int totalRounds, float deltaTime, UIRectRenderer& rectRenderer);
 
 	/// <summary>
-	/// GameOver/Victory中、「PRESS [A] TO TITLE」のクリック可能矩形をoutへ追加する。
+	/// GameOver/Victory中、「CLICK TO TITLE」のクリック可能矩形をoutへ追加する。
 	/// それ以外(RoundResult等、ボタン無し)は何も追加しない。描画を伴わない純粋関数。
 	/// isGameOverOrVictoryはGame::Update()側でGameState::currentPhaseから直接判定して渡す
 	/// (Draw*()で更新されるm_modeは前フレームの値のままになりうるため使わない。1フレーム遅延回避)。
