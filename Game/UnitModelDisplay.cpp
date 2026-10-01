@@ -7,7 +7,8 @@ namespace
 	// ★1基準の表示スケール。board-layout-rework で「1体が概ね1マスに収まり隣と重ならない」よう
 	// 10.0 → 4.0 に縮小(F5是正2で 5→4。さらに 3.5〜4.5 を微調整する出発値)。頭上バーの
 	// Yオフセット(BoardUIRenderer::kBarWorldY)もこれに追随して調整している。
-	const Vector3 kUnitModelScale(4.0f, 4.0f, 4.0f);
+	// playtest: カメラを寄せて盤面を拡大したらユニットが大きすぎるとの指摘で 4.0 → 3.0 に縮小。
+	const Vector3 kUnitModelScale(3.0f, 3.0f, 3.0f);
 
 	// モデル原点が中心にあり、そのまま y=0 に置くと下半分がヘックス平面へめり込む。
 	// 足元が平面に乗るよう、モデル高の概ね半分だけ Y へ持ち上げる。

@@ -12,7 +12,8 @@ namespace
 	// HPバーを浮かべる高さ(ユニットのワールド座標からの+Yオフセット)。
 	// board-layout-rework: モデルスケール縮小(10→4)＋足元を平面に乗せるYリフト(約+40)に追随。
 	// リフト分＋モデル高の頭上に来るよう 95(F5是正2。実機で頭とバーの隙間を見て微調整する出発値)。
-	const float kBarWorldY = 95.0f;
+	// playtest: モデルスケール 4→3 に合わせ 95 → 75(リフト30＋モデル高の頭上)。
+	const float kBarWorldY = 75.0f;
 	// combat-movement-playback: ユニットが移動して見えるようになり、近接戦で両陣営が隣接マスに
 	// 寄るとHPバーが横に重なる。敵側のバーだけ一段上へずらして両方読めるようにする(F5微調整前提)。
 	const float kEnemyBarYBonus = 26.0f;
@@ -50,7 +51,7 @@ namespace
 	const float kBarOffsetFollowRate = 12.0f;// 目標オフセットへの追従速度(1/秒)。移動に伴うガタつき抑制。
 
 	// --- combat-number-overlap: ダメージ/回復ポップアップ ---
-	const float kPopupWorldY = 60.0f;        // ユニットの胴体付近(HPバー kBarWorldY=95 より下)から出す。
+	const float kPopupWorldY = 45.0f;        // ユニットの胴体付近(HPバー kBarWorldY より下)から出す(モデル縮小に合わせ 60→45)。
 	const float kPopupRise = 30.0f;          // 寿命の間に上へ流れる量(px、ease-out)。
 	const float kPopupFadeSeconds = 0.3f;    // 寿命末尾のフェードアウト時間。
 	const float kPopupStackGap = 1.0f;       // 同ユニットで縦に積む時の行間。
